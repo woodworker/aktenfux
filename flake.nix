@@ -25,6 +25,7 @@
             rustToolchain
             cargo-watch
             cargo-edit
+            cargo-outdated
             rust-analyzer
             pkg-config
             openssl
