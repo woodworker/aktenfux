@@ -105,6 +105,7 @@ impl VaultScanner {
         Ok(notes)
     }
 
+    #[cfg(test)]
     pub fn get_vault_path(&self) -> &Path {
         &self.vault_path
     }

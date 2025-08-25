@@ -10,8 +10,11 @@ pub enum ErrorLevel {
 
 #[derive(Debug, Clone)]
 pub struct LogEntry {
+    #[allow(dead_code)]
     pub level: ErrorLevel,
+    #[allow(dead_code)]
     pub message: String,
+    #[allow(dead_code)]
     pub file_path: Option<String>,
 }
 
@@ -118,12 +121,14 @@ impl Logger {
         }
     }
 
+    #[cfg(test)]
     pub fn get_warning_count(&self) -> usize {
         self.entries.iter()
             .filter(|entry| matches!(entry.level, ErrorLevel::Warning))
             .count()
     }
 
+    #[cfg(test)]
     pub fn get_critical_count(&self) -> usize {
         self.entries.iter()
             .filter(|entry| matches!(entry.level, ErrorLevel::Critical))

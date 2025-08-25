@@ -73,6 +73,7 @@ pub fn parse_frontmatter_from_file<P: AsRef<Path>>(path: P, verbose: bool, lenie
     })
 }
 
+#[cfg(test)]
 fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> Result<(Option<HashMap<String, Yaml>>, Option<String>)> {
     extract_frontmatter_with_options(content, file_path, _verbose, true)
 }
