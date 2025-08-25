@@ -1,6 +1,7 @@
 use crate::frontmatter::Note;
-use serde_yaml::Value;
+use yaml_rust2::Yaml;
 use std::collections::HashMap;
+use crate::yaml_compat::{yaml_to_string, collect_yaml_strings};
 
 pub struct FilterCriteria {
     filters: Vec<(String, String)>,
@@ -48,27 +49,9 @@ pub fn collect_field_values(notes: &[Note], field: &str) -> Vec<String> {
     
     for note in notes {
         if let Some(value) = note.get_frontmatter_value(field) {
-            match value {
-                Value::String(s) => {
-                    all_values.insert(s.clone());
-                }
-                Value::Sequence(seq) => {
-                    for item in seq {
-                        if let Value::String(s) = item {
-                            all_values.insert(s.clone());
-                        }
-                    }
-                }
-                Value::Number(n) => {
-                    all_values.insert(n.to_string());
-                }
-                Value::Bool(b) => {
-                    all_values.insert(b.to_string());
-                }
-                _ => {
-                    // For other types, convert to string representation
-                    all_values.insert(format!("{:?}", value));
-                }
+            let strings = collect_yaml_strings(value);
+            for s in strings {
+                all_values.insert(s);
             }
         }
     }
@@ -107,34 +90,39 @@ impl FieldStats {
         }
     }
     
-    fn increment(&mut self, value: &Value) {
+    fn increment(&mut self, value: &Yaml) {
         self.total_count += 1;
         
         match value {
-            Value::String(s) => {
+            Yaml::String(s) => {
                 self.unique_values.insert(s.clone());
                 *self.value_counts.entry(s.clone()).or_insert(0) += 1;
             }
-            Value::Sequence(seq) => {
-                for item in seq {
-                    if let Value::String(s) = item {
+            Yaml::Array(arr) => {
+                for item in arr {
+                    if let Yaml::String(s) = item {
                         self.unique_values.insert(s.clone());
                         *self.value_counts.entry(s.clone()).or_insert(0) += 1;
                     }
                 }
             }
-            Value::Number(n) => {
+            Yaml::Integer(n) => {
                 let s = n.to_string();
                 self.unique_values.insert(s.clone());
                 *self.value_counts.entry(s).or_insert(0) += 1;
             }
-            Value::Bool(b) => {
+            Yaml::Real(f) => {
+                let s = f.to_string();
+                self.unique_values.insert(s.clone());
+                *self.value_counts.entry(s).or_insert(0) += 1;
+            }
+            Yaml::Boolean(b) => {
                 let s = b.to_string();
                 self.unique_values.insert(s.clone());
                 *self.value_counts.entry(s).or_insert(0) += 1;
             }
             _ => {
-                let s = format!("{:?}", value);
+                let s = yaml_to_string(value);
                 self.unique_values.insert(s.clone());
                 *self.value_counts.entry(s).or_insert(0) += 1;
             }
@@ -147,19 +135,19 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    fn create_test_note(path: &str, frontmatter: HashMap<String, Value>) -> Note {
+    fn create_test_note(path: &str, frontmatter: HashMap<String, Yaml>) -> Note {
         Note::new(path.to_string(), frontmatter)
     }
 
     #[test]
     fn test_filter_criteria() {
         let mut fm1 = HashMap::new();
-        fm1.insert("tag".to_string(), Value::String("work".to_string()));
-        fm1.insert("status".to_string(), Value::String("active".to_string()));
+        fm1.insert("tag".to_string(), Yaml::String("work".to_string()));
+        fm1.insert("status".to_string(), Yaml::String("active".to_string()));
         
         let mut fm2 = HashMap::new();
-        fm2.insert("tag".to_string(), Value::String("personal".to_string()));
-        fm2.insert("status".to_string(), Value::String("active".to_string()));
+        fm2.insert("tag".to_string(), Yaml::String("personal".to_string()));
+        fm2.insert("status".to_string(), Yaml::String("active".to_string()));
         
         let notes = vec![
             create_test_note("note1.md", fm1),
@@ -176,12 +164,12 @@ mod tests {
     #[test]
     fn test_collect_all_fields() {
         let mut fm1 = HashMap::new();
-        fm1.insert("title".to_string(), Value::String("Note 1".to_string()));
-        fm1.insert("tag".to_string(), Value::String("work".to_string()));
+        fm1.insert("title".to_string(), Yaml::String("Note 1".to_string()));
+        fm1.insert("tag".to_string(), Yaml::String("work".to_string()));
         
         let mut fm2 = HashMap::new();
-        fm2.insert("title".to_string(), Value::String("Note 2".to_string()));
-        fm2.insert("status".to_string(), Value::String("active".to_string()));
+        fm2.insert("title".to_string(), Yaml::String("Note 2".to_string()));
+        fm2.insert("status".to_string(), Yaml::String("active".to_string()));
         
         let notes = vec![
             create_test_note("note1.md", fm1),

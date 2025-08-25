@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
-use serde_yaml::Value;
+use yaml_rust2::Yaml;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use anyhow::{Context, Result};
+use crate::yaml_compat::{parse_yaml_frontmatter, yaml_as_str, yaml_contains_str};
 
 #[derive(Debug)]
 pub struct ParseResult {
@@ -11,18 +11,18 @@ pub struct ParseResult {
     pub frontmatter_warning: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Note {
     pub path: String,
-    pub frontmatter: HashMap<String, Value>,
+    pub frontmatter: HashMap<String, Yaml>,
     pub title: Option<String>,
 }
 
 impl Note {
-    pub fn new(path: String, frontmatter: HashMap<String, Value>) -> Self {
+    pub fn new(path: String, frontmatter: HashMap<String, Yaml>) -> Self {
         let title = frontmatter
             .get("title")
-            .and_then(|v| v.as_str())
+            .and_then(|v| yaml_as_str(v))
             .map(|s| s.to_string())
             .or_else(|| {
                 // Extract title from filename if not in frontmatter
@@ -39,27 +39,13 @@ impl Note {
         }
     }
 
-    pub fn get_frontmatter_value(&self, key: &str) -> Option<&Value> {
+    pub fn get_frontmatter_value(&self, key: &str) -> Option<&Yaml> {
         self.frontmatter.get(key)
     }
 
     pub fn matches_filter(&self, key: &str, value: &str) -> bool {
         if let Some(fm_value) = self.get_frontmatter_value(key) {
-            match fm_value {
-                Value::String(s) => s.contains(value),
-                Value::Sequence(seq) => {
-                    seq.iter().any(|v| {
-                        if let Value::String(s) = v {
-                            s.contains(value)
-                        } else {
-                            false
-                        }
-                    })
-                }
-                Value::Number(n) => n.to_string().contains(value),
-                Value::Bool(b) => b.to_string().contains(value),
-                _ => false,
-            }
+            yaml_contains_str(fm_value, value)
         } else {
             false
         }
@@ -87,11 +73,11 @@ pub fn parse_frontmatter_from_file<P: AsRef<Path>>(path: P, verbose: bool, lenie
     })
 }
 
-fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> Result<(Option<HashMap<String, Value>>, Option<String>)> {
+fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> Result<(Option<HashMap<String, Yaml>>, Option<String>)> {
     extract_frontmatter_with_options(content, file_path, _verbose, true)
 }
 
-fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bool, lenient: bool) -> Result<(Option<HashMap<String, Value>>, Option<String>)> {
+fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bool, lenient: bool) -> Result<(Option<HashMap<String, Yaml>>, Option<String>)> {
     let content = content.trim();
     
     // Check if content starts with frontmatter delimiter
@@ -127,7 +113,7 @@ fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bo
     }
 
     // Parse YAML frontmatter
-    match serde_yaml::from_str::<HashMap<String, Value>>(&frontmatter_content) {
+    match parse_yaml_frontmatter(&frontmatter_content) {
         Ok(parsed) => Ok((Some(parsed), None)),
         Err(e) => {
             if lenient {
@@ -152,10 +138,10 @@ fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bo
     }
 }
 
-fn try_lenient_parse(frontmatter_content: &str) -> Result<HashMap<String, Value>, serde_yaml::Error> {
+fn try_lenient_parse(frontmatter_content: &str) -> Result<HashMap<String, Yaml>> {
     // Fix common YAML issues by preprocessing the content
     let fixed_content = fix_yaml_issues(frontmatter_content);
-    serde_yaml::from_str::<HashMap<String, Value>>(&fixed_content)
+    parse_yaml_frontmatter(&fixed_content)
 }
 
 fn fix_yaml_issues(content: &str) -> String {
@@ -218,8 +204,8 @@ This is the content of the note."#;
 
         let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
         let result = result.unwrap();
-        assert_eq!(result.get("title").unwrap().as_str().unwrap(), "Test Note");
-        assert_eq!(result.get("status").unwrap().as_str().unwrap(), "active");
+        assert_eq!(yaml_as_str(result.get("title").unwrap()).unwrap(), "Test Note");
+        assert_eq!(yaml_as_str(result.get("status").unwrap()).unwrap(), "active");
         assert!(warning.is_none());
     }
 
@@ -256,10 +242,10 @@ This note has colons in frontmatter values."#;
         let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
         let result = result.unwrap();
         
-        assert_eq!(result.get("title").unwrap().as_str().unwrap(), "Test Note");
-        assert_eq!(result.get("source").unwrap().as_str().unwrap(), "Eberron: Rising from the Last War p. 277");
-        assert_eq!(result.get("book").unwrap().as_str().unwrap(), "Player's Handbook: Chapter 3");
-        assert_eq!(result.get("url").unwrap().as_str().unwrap(), "https://example.com/path");
+        assert_eq!(yaml_as_str(result.get("title").unwrap()).unwrap(), "Test Note");
+        assert_eq!(yaml_as_str(result.get("source").unwrap()).unwrap(), "Eberron: Rising from the Last War p. 277");
+        assert_eq!(yaml_as_str(result.get("book").unwrap()).unwrap(), "Player's Handbook: Chapter 3");
+        assert_eq!(yaml_as_str(result.get("url").unwrap()).unwrap(), "https://example.com/path");
         
         // Should have a warning about lenient parsing
         assert!(warning.is_some());
@@ -308,8 +294,8 @@ source: Eberron: Rising from the Last War p. 277
         let (result_lenient, warning_lenient) = extract_frontmatter_with_options(content, "test.md", false, true).unwrap();
         let result_lenient = result_lenient.unwrap();
         assert!(!result_lenient.is_empty()); // Should have parsed content
-        assert_eq!(result_lenient.get("title").unwrap().as_str().unwrap(), "Test Note");
-        assert_eq!(result_lenient.get("source").unwrap().as_str().unwrap(), "Eberron: Rising from the Last War p. 277");
+        assert_eq!(yaml_as_str(result_lenient.get("title").unwrap()).unwrap(), "Test Note");
+        assert_eq!(yaml_as_str(result_lenient.get("source").unwrap()).unwrap(), "Eberron: Rising from the Last War p. 277");
         assert!(warning_lenient.is_some());
         assert!(warning_lenient.unwrap().contains("Used lenient parsing"));
     }

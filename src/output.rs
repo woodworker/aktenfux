@@ -1,8 +1,10 @@
 use crate::frontmatter::Note;
 use crate::filter::{collect_all_fields, collect_field_values, get_field_statistics};
+use crate::yaml_compat::yaml_to_json_value;
 use anyhow::Result;
 use colored::*;
 use serde_json;
+use serde::Serialize;
 
 pub fn display_filtered_results(notes: &[&Note], format: &str) -> Result<()> {
     match format.to_lowercase().as_str() {
@@ -201,7 +203,31 @@ fn display_paths_format(notes: &[&Note]) -> Result<()> {
 }
 
 fn display_json_format(notes: &[&Note]) -> Result<()> {
-    let json_output = serde_json::to_string_pretty(notes)?;
+    // Create a serde-compatible representation for JSON output
+    #[derive(Serialize)]
+    struct SerializableNote {
+        path: String,
+        frontmatter: serde_json::Map<String, serde_json::Value>,
+        title: Option<String>,
+    }
+    
+    let serializable_notes: Vec<SerializableNote> = notes
+        .iter()
+        .map(|note| {
+            let mut frontmatter_map = serde_json::Map::new();
+            for (key, value) in &note.frontmatter {
+                frontmatter_map.insert(key.clone(), yaml_to_json_value(value));
+            }
+            
+            SerializableNote {
+                path: note.path.clone(),
+                frontmatter: frontmatter_map,
+                title: note.title.clone(),
+            }
+        })
+        .collect();
+    
+    let json_output = serde_json::to_string_pretty(&serializable_notes)?;
     println!("{}", json_output);
     Ok(())
 }
@@ -210,9 +236,9 @@ fn display_json_format(notes: &[&Note]) -> Result<()> {
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use serde_yaml::Value;
+    use yaml_rust2::Yaml;
 
-    fn create_test_note(path: &str, title: Option<&str>, frontmatter: HashMap<String, Value>) -> Note {
+    fn create_test_note(path: &str, title: Option<&str>, frontmatter: HashMap<String, Yaml>) -> Note {
         let mut note = Note::new(path.to_string(), frontmatter);
         if let Some(t) = title {
             note.title = Some(t.to_string());
@@ -223,7 +249,7 @@ mod tests {
     #[test]
     fn test_display_paths_format() {
         let mut fm = HashMap::new();
-        fm.insert("tag".to_string(), Value::String("test".to_string()));
+        fm.insert("tag".to_string(), Yaml::String("test".to_string()));
         
         let notes = vec![
             create_test_note("note1.md", Some("Note 1"), fm.clone()),

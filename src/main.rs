@@ -6,6 +6,7 @@ mod scanner;
 mod filter;
 mod output;
 mod logger;
+mod yaml_compat;
 
 use crate::scanner::VaultScanner;
 use crate::filter::FilterCriteria;
