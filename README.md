@@ -49,13 +49,13 @@ cargo build --release
 
 ```bash
 # List all available frontmatter fields in your vault
-aktenfux fields [vault_path] [--filter=<field>=<value>] [--verbose]
+aktenfux fields [vault_path] [--filter=<field>=<value>] [--verbose] [--strict]
 
 # List all values for a specific field
-aktenfux values [vault_path] --field=<field_name> [--filter=<field>=<value>] [--verbose]
+aktenfux values [vault_path] --field=<field_name> [--filter=<field>=<value>] [--verbose] [--strict]
 
 # Filter notes by frontmatter
-aktenfux filter [vault_path] --filter=<field>=<value> [--verbose]
+aktenfux filter [vault_path] --filter=<field>=<value> [--verbose] [--strict]
 ```
 
 If no `vault_path` is provided, the current directory is used.
@@ -230,6 +230,37 @@ Your note content here...
 - **Booleans**: `published: true`
 - **Dates**: `due_date: 2024-12-31`
 
+### Lenient Frontmatter Parsing
+
+Aktenfux includes **lenient parsing** to handle common YAML frontmatter issues:
+
+- **Values with colons**: Automatically handles values like `source: Eberron: Rising from the Last War p. 277`
+- **URLs**: Works with `url: https://example.com/path` without requiring quotes
+- **Book references**: Handles `book: Player's Handbook: Chapter 3` correctly
+
+By default, Aktenfux uses lenient parsing which automatically quotes problematic values. If you need strict YAML compliance, use the `--strict` flag:
+
+```bash
+# Default lenient parsing (recommended)
+aktenfux filter --filter=source=Eberron
+
+# Strict YAML parsing (may fail on unquoted values with colons)
+aktenfux filter --filter=source=Eberron --strict
+```
+
+**Example problematic frontmatter that works with lenient parsing:**
+```markdown
+---
+title: D&D Reference Note
+source: Eberron: Rising from the Last War p. 277
+book: Player's Handbook: Chapter 3
+url: https://example.com/path
+tags: [dnd, reference]
+---
+```
+
+With lenient parsing, this will be automatically converted to valid YAML internally and parsed successfully.
+
 ## Performance
 
 Aktenfux is designed for speed:
@@ -344,6 +375,12 @@ nix develop
 MIT License - see LICENSE file for details.
 
 ## Changelog
+
+### v0.1.3
+- **Lenient Frontmatter Parsing**: Added automatic handling of YAML frontmatter with colons in values
+- **Strict Mode Option**: Added `--strict` flag to disable lenient parsing when needed
+- **Better YAML Compatibility**: Automatically quotes problematic values like `source: Eberron: Rising from the Last War p. 277`
+- **Enhanced Error Messages**: Distinguishes between lenient parsing warnings and actual parsing failures
 
 ### v0.1.2
 - **Improved Error Handling**: Added `--verbose`/`-v` flag to all commands

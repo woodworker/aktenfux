@@ -20,6 +20,7 @@ pub struct Logger {
     verbose: bool,
     entries: Vec<LogEntry>,
     error_counts: HashMap<String, usize>,
+    lenient_parsing_count: usize,
 }
 
 impl Logger {
@@ -28,6 +29,7 @@ impl Logger {
             verbose,
             entries: Vec::new(),
             error_counts: HashMap::new(),
+            lenient_parsing_count: 0,
         }
     }
 
@@ -57,9 +59,13 @@ impl Logger {
             file_path: file_path_str.clone(),
         };
 
-        // Count warnings by type
-        let warning_type = extract_warning_type(&message);
-        *self.error_counts.entry(warning_type).or_insert(0) += 1;
+        // Count warnings by type, but handle lenient parsing separately
+        if message.contains("Used lenient parsing") {
+            self.lenient_parsing_count += 1;
+        } else {
+            let warning_type = extract_warning_type(&message);
+            *self.error_counts.entry(warning_type).or_insert(0) += 1;
+        }
 
         // Show warnings only in verbose mode
         if self.verbose {
@@ -89,9 +95,15 @@ impl Logger {
         self.entries.push(entry);
     }
 
-    pub fn print_summary(&self, total_files: usize, successful_files: usize) {
+    pub fn print_summary(&self, _total_files: usize, successful_files: usize) {
         println!("Successfully parsed {} notes", successful_files);
         
+        // Show lenient parsing info if any files were fixed
+        if self.lenient_parsing_count > 0 {
+            println!("Fixed {} files with lenient parsing (frontmatter with colons in values)", self.lenient_parsing_count);
+        }
+        
+        // Show actual parsing errors (files that were skipped)
         if !self.error_counts.is_empty() {
             let total_errors: usize = self.error_counts.values().sum();
             if total_errors > 0 {
@@ -206,5 +218,27 @@ mod tests {
         // Should have 1 error type with count of 2
         assert_eq!(logger.error_counts.len(), 1);
         assert_eq!(logger.error_counts.get("Frontmatter parsing errors"), Some(&2));
+    }
+
+    #[test]
+    fn test_lenient_parsing_tracking() {
+        let mut logger = Logger::new(false);
+        
+        // Add lenient parsing warnings
+        logger.log_warning("Used lenient parsing for frontmatter in file test.md due to: mapping values are not allowed".to_string(), Some("test.md"));
+        logger.log_warning("Used lenient parsing for frontmatter in file test2.md due to: mapping values are not allowed".to_string(), Some("test2.md"));
+        
+        // Add regular parsing error
+        logger.log_warning("Failed to parse frontmatter in file3".to_string(), Some("test3.md"));
+        
+        // Should have 3 warnings total
+        assert_eq!(logger.get_warning_count(), 3);
+        
+        // Should have 2 lenient parsing fixes
+        assert_eq!(logger.lenient_parsing_count, 2);
+        
+        // Should have 1 actual error
+        assert_eq!(logger.error_counts.len(), 1);
+        assert_eq!(logger.error_counts.get("Frontmatter parsing errors"), Some(&1));
     }
 }

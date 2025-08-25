@@ -31,7 +31,7 @@ impl VaultScanner {
         Ok(Self { vault_path })
     }
 
-    pub fn scan_vault(&self, verbose: bool) -> Result<Vec<Note>> {
+    pub fn scan_vault(&self, verbose: bool, lenient: bool) -> Result<Vec<Note>> {
         let mut logger = Logger::new(verbose);
         
         logger.log_info(
@@ -72,7 +72,7 @@ impl VaultScanner {
         let notes: Vec<Note> = markdown_files
             .par_iter()
             .filter_map(|path| {
-                match parse_frontmatter_from_file(path, verbose) {
+                match parse_frontmatter_from_file(path, verbose, lenient) {
                     Ok(ParseResult { note, frontmatter_warning }) => {
                         // Log frontmatter warnings if present
                         if let Some(warning) = frontmatter_warning {
@@ -133,7 +133,7 @@ mod tests {
     fn test_scan_empty_vault() {
         let temp_dir = TempDir::new().unwrap();
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault(false).unwrap();
+        let notes = scanner.scan_vault(false, true).unwrap();
         assert!(notes.is_empty());
     }
 
@@ -152,7 +152,7 @@ tags: [test]
 "#).unwrap();
 
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault(false).unwrap();
+        let notes = scanner.scan_vault(false, true).unwrap();
         
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, Some("Test Note".to_string()));
