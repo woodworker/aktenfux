@@ -373,33 +373,3 @@ nix develop
 ## License
 
 MIT License - see LICENSE file for details.
-
-## Changelog
-
-### v0.1.3
-- **Lenient Frontmatter Parsing**: Added automatic handling of YAML frontmatter with colons in values
-- **Strict Mode Option**: Added `--strict` flag to disable lenient parsing when needed
-- **Better YAML Compatibility**: Automatically quotes problematic values like `source: Eberron: Rising from the Last War p. 277`
-- **Enhanced Error Messages**: Distinguishes between lenient parsing warnings and actual parsing failures
-
-### v0.1.2
-- **Improved Error Handling**: Added `--verbose`/`-v` flag to all commands
-- **Better Error Messages**: Frontmatter parsing errors now include specific file paths
-- **Summary Output**: Default mode shows error counts by category instead of individual warnings
-- **Cleaner Output**: Reduced noise for large vaults while maintaining debugging capability
-- **Enhanced Logging**: Centralized error reporting system with categorized error types
-
-### v0.1.1
-- Added filtering capability to `fields` command
-- Added filtering capability to `values` command
-- Can now filter field analysis by frontmatter criteria (e.g., `aktenfux fields --filter=type=Monster`)
-- Can now filter value analysis by frontmatter criteria (e.g., `aktenfux values --field=status --filter=tags=work`)
-- Supports multiple filters with AND logic for both commands
-- Maintains same filtering syntax as existing `filter` command
-
-### v0.1.0
-- Initial release
-- Basic frontmatter parsing and filtering
-- Parallel processing support
-- Multiple output formats
-- Field and value analysis commands
