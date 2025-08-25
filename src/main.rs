@@ -5,6 +5,7 @@ mod frontmatter;
 mod scanner;
 mod filter;
 mod output;
+mod logger;
 
 use crate::scanner::VaultScanner;
 use crate::filter::FilterCriteria;
@@ -32,6 +33,9 @@ enum Commands {
         /// Output format: table, paths, json
         #[arg(short, long, default_value = "table")]
         format: String,
+        /// Enable verbose output with detailed error messages
+        #[arg(short, long)]
+        verbose: bool,
     },
     /// List all available frontmatter fields in the vault
     Fields {
@@ -41,6 +45,9 @@ enum Commands {
         /// Filter by field=value pairs (can be used multiple times)
         #[arg(long, value_parser = parse_filter)]
         filter: Vec<(String, String)>,
+        /// Enable verbose output with detailed error messages
+        #[arg(short, long)]
+        verbose: bool,
     },
     /// List all values for a specific frontmatter field
     Values {
@@ -53,6 +60,9 @@ enum Commands {
         /// Filter by field=value pairs (can be used multiple times)
         #[arg(long, value_parser = parse_filter)]
         filter: Vec<(String, String)>,
+        /// Enable verbose output with detailed error messages
+        #[arg(short, long)]
+        verbose: bool,
     },
 }
 
@@ -68,18 +78,18 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Filter { vault_path, filter, format } => {
+        Commands::Filter { vault_path, filter, format, verbose } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault()?;
+            let notes = scanner.scan_vault(verbose)?;
             
             let criteria = FilterCriteria::new(filter);
             let filtered_notes = criteria.apply_filters(&notes);
             
             output::display_filtered_results(&filtered_notes, &format)?;
         }
-        Commands::Fields { vault_path, filter } => {
+        Commands::Fields { vault_path, filter, verbose } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault()?;
+            let notes = scanner.scan_vault(verbose)?;
             
             let criteria = FilterCriteria::new(filter);
             let filtered_notes = criteria.apply_filters(&notes);
@@ -89,9 +99,9 @@ fn main() -> anyhow::Result<()> {
             
             output::display_all_fields(&filtered_notes_owned)?;
         }
-        Commands::Values { vault_path, field, filter } => {
+        Commands::Values { vault_path, field, filter, verbose } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault()?;
+            let notes = scanner.scan_vault(verbose)?;
             
             let criteria = FilterCriteria::new(filter);
             let filtered_notes = criteria.apply_filters(&notes);

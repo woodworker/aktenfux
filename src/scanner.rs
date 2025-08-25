@@ -1,7 +1,9 @@
-use crate::frontmatter::{parse_frontmatter_from_file, Note};
+use crate::frontmatter::{parse_frontmatter_from_file, Note, ParseResult};
+use crate::logger::Logger;
 use anyhow::Result;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use walkdir::WalkDir;
 
 pub struct VaultScanner {
@@ -29,8 +31,13 @@ impl VaultScanner {
         Ok(Self { vault_path })
     }
 
-    pub fn scan_vault(&self) -> Result<Vec<Note>> {
-        println!("Scanning vault: {}", self.vault_path.display());
+    pub fn scan_vault(&self, verbose: bool) -> Result<Vec<Note>> {
+        let mut logger = Logger::new(verbose);
+        
+        logger.log_info(
+            format!("Scanning vault: {}", self.vault_path.display()),
+            None::<&Path>,
+        );
         
         // Find all markdown files
         let markdown_files: Vec<PathBuf> = WalkDir::new(&self.vault_path)
@@ -53,24 +60,48 @@ impl VaultScanner {
             })
             .collect();
 
-        println!("Found {} markdown files", markdown_files.len());
+        logger.log_info(
+            format!("Found {} markdown files", markdown_files.len()),
+            None::<&Path>,
+        );
+
+        // Use Arc<Mutex<Logger>> for thread-safe logging
+        let logger = Arc::new(Mutex::new(logger));
 
         // Process files in parallel
         let notes: Vec<Note> = markdown_files
             .par_iter()
             .filter_map(|path| {
-                match parse_frontmatter_from_file(path) {
-                    Ok(Some(note)) => Some(note),
-                    Ok(None) => None,
+                match parse_frontmatter_from_file(path, verbose) {
+                    Ok(ParseResult { note, frontmatter_warning }) => {
+                        // Log frontmatter warnings if present
+                        if let Some(warning) = frontmatter_warning {
+                            if let Ok(mut logger) = logger.lock() {
+                                logger.log_warning(warning, Some(path));
+                            }
+                        }
+                        note
+                    }
                     Err(e) => {
-                        eprintln!("Warning: Failed to parse {}: {}", path.display(), e);
+                        if let Ok(mut logger) = logger.lock() {
+                            logger.log_critical(
+                                format!("Failed to parse file: {}", e),
+                                Some(path),
+                            );
+                        }
                         None
                     }
                 }
             })
             .collect();
 
-        println!("Successfully parsed {} notes", notes.len());
+        // Extract logger from Arc<Mutex<>> for final summary
+        let logger = Arc::try_unwrap(logger)
+            .map_err(|_| anyhow::anyhow!("Failed to unwrap logger"))?
+            .into_inner()
+            .map_err(|_| anyhow::anyhow!("Failed to extract logger from mutex"))?;
+
+        logger.print_summary(markdown_files.len(), notes.len());
         Ok(notes)
     }
 
@@ -102,7 +133,7 @@ mod tests {
     fn test_scan_empty_vault() {
         let temp_dir = TempDir::new().unwrap();
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault().unwrap();
+        let notes = scanner.scan_vault(false).unwrap();
         assert!(notes.is_empty());
     }
 
@@ -121,7 +152,7 @@ tags: [test]
 "#).unwrap();
 
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault().unwrap();
+        let notes = scanner.scan_vault(false).unwrap();
         
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, Some("Test Note".to_string()));

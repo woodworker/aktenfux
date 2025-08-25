@@ -5,6 +5,12 @@ use std::fs;
 use std::path::Path;
 use anyhow::{Context, Result};
 
+#[derive(Debug)]
+pub struct ParseResult {
+    pub note: Option<Note>,
+    pub frontmatter_warning: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
     pub path: String,
@@ -60,32 +66,39 @@ impl Note {
     }
 }
 
-pub fn parse_frontmatter_from_file<P: AsRef<Path>>(path: P) -> Result<Option<Note>> {
+pub fn parse_frontmatter_from_file<P: AsRef<Path>>(path: P, verbose: bool) -> Result<ParseResult> {
     let content = fs::read_to_string(&path)
         .with_context(|| format!("Failed to read file: {}", path.as_ref().display()))?;
 
     let path_str = path.as_ref().to_string_lossy().to_string();
     
-    if let Some(frontmatter) = extract_frontmatter(&content)? {
-        Ok(Some(Note::new(path_str, frontmatter)))
+    let (frontmatter_opt, warning) = extract_frontmatter(&content, &path_str, verbose)?;
+    
+    let note = if let Some(frontmatter) = frontmatter_opt {
+        Some(Note::new(path_str.clone(), frontmatter))
     } else {
         // Create note with empty frontmatter if no frontmatter found
-        Ok(Some(Note::new(path_str, HashMap::new())))
-    }
+        Some(Note::new(path_str, HashMap::new()))
+    };
+    
+    Ok(ParseResult {
+        note,
+        frontmatter_warning: warning,
+    })
 }
 
-fn extract_frontmatter(content: &str) -> Result<Option<HashMap<String, Value>>> {
+fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> Result<(Option<HashMap<String, Value>>, Option<String>)> {
     let content = content.trim();
     
     // Check if content starts with frontmatter delimiter
     if !content.starts_with("---") {
-        return Ok(None);
+        return Ok((None, None));
     }
 
     // Find the end of frontmatter
     let lines: Vec<&str> = content.lines().collect();
     if lines.len() < 3 {
-        return Ok(None);
+        return Ok((None, None));
     }
 
     let mut end_index = None;
@@ -98,7 +111,7 @@ fn extract_frontmatter(content: &str) -> Result<Option<HashMap<String, Value>>> 
 
     let end_index = match end_index {
         Some(idx) => idx,
-        None => return Ok(None),
+        None => return Ok((None, None)),
     };
 
     // Extract frontmatter content
@@ -106,16 +119,16 @@ fn extract_frontmatter(content: &str) -> Result<Option<HashMap<String, Value>>> 
     let frontmatter_content = frontmatter_lines.join("\n");
 
     if frontmatter_content.trim().is_empty() {
-        return Ok(Some(HashMap::new()));
+        return Ok((Some(HashMap::new()), None));
     }
 
     // Parse YAML frontmatter
     match serde_yaml::from_str::<HashMap<String, Value>>(&frontmatter_content) {
-        Ok(parsed) => Ok(Some(parsed)),
+        Ok(parsed) => Ok((Some(parsed), None)),
         Err(e) => {
-            // If YAML parsing fails, return empty frontmatter instead of error
-            eprintln!("Warning: Failed to parse frontmatter in file, skipping: {}", e);
-            Ok(Some(HashMap::new()))
+            // If YAML parsing fails, return warning message and empty frontmatter
+            let warning = format!("Failed to parse frontmatter in file {}: {}", file_path, e);
+            Ok((Some(HashMap::new()), Some(warning)))
         }
     }
 }
@@ -136,22 +149,27 @@ status: active
 
 This is the content of the note."#;
 
-        let result = extract_frontmatter(content).unwrap().unwrap();
+        let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
+        let result = result.unwrap();
         assert_eq!(result.get("title").unwrap().as_str().unwrap(), "Test Note");
         assert_eq!(result.get("status").unwrap().as_str().unwrap(), "active");
+        assert!(warning.is_none());
     }
 
     #[test]
     fn test_no_frontmatter() {
         let content = "# Just a regular markdown file\n\nWith some content.";
-        let result = extract_frontmatter(content).unwrap();
+        let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
         assert!(result.is_none());
+        assert!(warning.is_none());
     }
 
     #[test]
     fn test_empty_frontmatter() {
         let content = "---\n---\n\n# Note with empty frontmatter";
-        let result = extract_frontmatter(content).unwrap().unwrap();
+        let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
+        let result = result.unwrap();
         assert!(result.is_empty());
+        assert!(warning.is_none());
     }
 }

@@ -49,16 +49,32 @@ cargo build --release
 
 ```bash
 # List all available frontmatter fields in your vault
-aktenfux fields [vault_path] [--filter=<field>=<value>]
+aktenfux fields [vault_path] [--filter=<field>=<value>] [--verbose]
 
 # List all values for a specific field
-aktenfux values [vault_path] --field=<field_name> [--filter=<field>=<value>]
+aktenfux values [vault_path] --field=<field_name> [--filter=<field>=<value>] [--verbose]
 
 # Filter notes by frontmatter
-aktenfux filter [vault_path] --filter=<field>=<value>
+aktenfux filter [vault_path] --filter=<field>=<value> [--verbose]
 ```
 
 If no `vault_path` is provided, the current directory is used.
+
+### Verbose Output
+
+All commands support a `--verbose` (or `-v`) flag for detailed output:
+
+- **Default mode**: Shows a summary of parsing errors (e.g., "Skipped 5 files due to frontmatter parsing errors")
+- **Verbose mode**: Shows detailed error messages with specific file paths and error descriptions
+
+```bash
+# Show detailed error information
+aktenfux filter --verbose
+aktenfux fields --verbose
+aktenfux values --field=tags --verbose
+```
+
+This is particularly useful when troubleshooting frontmatter parsing issues in large vaults.
 
 ### Examples
 
@@ -328,6 +344,13 @@ nix develop
 MIT License - see LICENSE file for details.
 
 ## Changelog
+
+### v0.1.2
+- **Improved Error Handling**: Added `--verbose`/`-v` flag to all commands
+- **Better Error Messages**: Frontmatter parsing errors now include specific file paths
+- **Summary Output**: Default mode shows error counts by category instead of individual warnings
+- **Cleaner Output**: Reduced noise for large vaults while maintaining debugging capability
+- **Enhanced Logging**: Centralized error reporting system with categorized error types
 
 ### v0.1.1
 - Added filtering capability to `fields` command
