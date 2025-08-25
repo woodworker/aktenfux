@@ -98,7 +98,14 @@ impl Logger {
         self.entries.push(entry);
     }
 
-    pub fn print_summary(&self, _total_files: usize, successful_files: usize) {
+    pub fn print_summary(&self, _total_files: usize, successful_files: usize, format: Option<&str>) {
+        // Don't print summary for JSON format to keep output clean
+        if let Some(fmt) = format {
+            if fmt.to_lowercase() == "json" {
+                return;
+            }
+        }
+        
         println!("Successfully parsed {} notes", successful_files);
         
         // Show lenient parsing info if any files were fixed

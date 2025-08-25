@@ -31,7 +31,7 @@ impl VaultScanner {
         Ok(Self { vault_path })
     }
 
-    pub fn scan_vault(&self, verbose: bool, lenient: bool) -> Result<Vec<Note>> {
+    pub fn scan_vault(&self, verbose: bool, lenient: bool, format: Option<&str>) -> Result<Vec<Note>> {
         let mut logger = Logger::new(verbose);
         
         logger.log_info(
@@ -101,7 +101,7 @@ impl VaultScanner {
             .into_inner()
             .map_err(|_| anyhow::anyhow!("Failed to extract logger from mutex"))?;
 
-        logger.print_summary(markdown_files.len(), notes.len());
+        logger.print_summary(markdown_files.len(), notes.len(), format);
         Ok(notes)
     }
 
@@ -134,7 +134,7 @@ mod tests {
     fn test_scan_empty_vault() {
         let temp_dir = TempDir::new().unwrap();
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault(false, true).unwrap();
+        let notes = scanner.scan_vault(false, true, None).unwrap();
         assert!(notes.is_empty());
     }
 
@@ -153,7 +153,7 @@ tags: [test]
 "#).unwrap();
 
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault(false, true).unwrap();
+        let notes = scanner.scan_vault(false, true, None).unwrap();
         
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, Some("Test Note".to_string()));

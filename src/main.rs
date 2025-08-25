@@ -90,7 +90,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Filter { vault_path, filter, format, verbose, strict } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict)?;
+            let notes = scanner.scan_vault(verbose, !strict, Some(&format))?;
             
             let criteria = FilterCriteria::new(filter);
             let filtered_notes = criteria.apply_filters(&notes);
@@ -99,7 +99,7 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Fields { vault_path, filter, verbose, strict } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict)?;
+            let notes = scanner.scan_vault(verbose, !strict, None)?;
             
             let criteria = FilterCriteria::new(filter);
             let filtered_notes = criteria.apply_filters(&notes);
@@ -111,7 +111,7 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Values { vault_path, field, filter, verbose, strict } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict)?;
+            let notes = scanner.scan_vault(verbose, !strict, None)?;
             
             let criteria = FilterCriteria::new(filter);
             let filtered_notes = criteria.apply_filters(&notes);
