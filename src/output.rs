@@ -8,29 +8,33 @@ use anyhow::Result;
 use colored::*;
 use serde::Serialize;
 
-pub fn display_filtered_results(notes: &[&Note], format: &str) -> Result<()> {
+pub fn display_filtered_results(notes: &[&Note], format: &str, silent: bool) -> Result<()> {
     match format.to_lowercase().as_str() {
-        "table" => display_table_format(notes),
-        "paths" => display_paths_format(notes),
-        "json" => display_json_format(notes),
+        "table" => display_table_format(notes, silent),
+        "paths" => display_paths_format(notes, silent),
+        "json" => display_json_format(notes, silent),
         _ => {
             eprintln!("Unknown format: {}. Using table format.", format);
-            display_table_format(notes)
+            display_table_format(notes, silent)
         }
     }
 }
 
-pub fn display_all_fields(notes: &[Note]) -> Result<()> {
+pub fn display_all_fields(notes: &[Note], silent: bool) -> Result<()> {
     let fields = collect_all_fields(notes);
     let stats = get_field_statistics(notes);
 
     if fields.is_empty() {
-        println!("{}", "No frontmatter fields found in any notes.".yellow());
+        if !silent {
+            println!("{}", "No frontmatter fields found in any notes.".yellow());
+        }
         return Ok(());
     }
 
-    println!("{}", "Available frontmatter fields:".bold().blue());
-    println!();
+    if !silent {
+        println!("{}", "Available frontmatter fields:".bold().blue());
+        println!();
+    }
 
     // Calculate column widths
     let max_field_width = fields.iter().map(|f| f.len()).max().unwrap_or(0);
@@ -58,12 +62,14 @@ pub fn display_all_fields(notes: &[Note]) -> Result<()> {
         );
     }
 
-    println!();
-    println!(
-        "Total: {} unique fields across {} notes",
-        fields.len(),
-        notes.len()
-    );
+    if !silent {
+        println!();
+        println!(
+            "Total: {} unique fields across {} notes",
+            fields.len(),
+            notes.len()
+        );
+    }
 
     Ok(())
 }
@@ -72,6 +78,7 @@ pub fn display_field_values_with_options(
     notes: &[Note],
     field: &str,
     case_sensitive: bool,
+    silent: bool,
 ) -> Result<()> {
     let (values, actual_field_name) = if case_sensitive {
         (collect_field_values(notes, field), field.to_string())
@@ -82,20 +89,22 @@ pub fn display_field_values_with_options(
     let stats = get_field_statistics(notes);
 
     if values.is_empty() {
-        if case_sensitive {
-            println!(
-                "{}",
-                format!("No values found for field '{}'.", field).yellow()
-            );
-        } else {
-            println!(
-                "{}",
-                format!(
-                    "No values found for field '{}' (case-insensitive search).",
-                    field
-                )
-                .yellow()
-            );
+        if !silent {
+            if case_sensitive {
+                println!(
+                    "{}",
+                    format!("No values found for field '{}'.", field).yellow()
+                );
+            } else {
+                println!(
+                    "{}",
+                    format!(
+                        "No values found for field '{}' (case-insensitive search).",
+                        field
+                    )
+                    .yellow()
+                );
+            }
         }
         return Ok(());
     }
@@ -106,13 +115,15 @@ pub fn display_field_values_with_options(
         format!("{} (matched: {})", field, actual_field_name)
     };
 
-    println!(
-        "{}",
-        format!("Values for field '{}':", display_field)
-            .bold()
-            .blue()
-    );
-    println!();
+    if !silent {
+        println!(
+            "{}",
+            format!("Values for field '{}':", display_field)
+                .bold()
+                .blue()
+        );
+        println!();
+    }
 
     let stats_key = if case_sensitive {
         field
@@ -146,37 +157,49 @@ pub fn display_field_values_with_options(
             );
         }
 
-        println!();
-        println!(
-            "Total: {} unique values, {} total occurrences",
-            values.len(),
-            field_stats.total_count
-        );
+        if !silent {
+            println!();
+            println!(
+                "Total: {} unique values, {} total occurrences",
+                values.len(),
+                field_stats.total_count
+            );
+        }
     } else {
         // Fallback if stats are not available
         for value in &values {
-            println!("  {}", value.green());
+            if silent {
+                println!("{}", value);
+            } else {
+                println!("  {}", value.green());
+            }
         }
-        println!();
-        println!("Total: {} unique values", values.len());
+        if !silent {
+            println!();
+            println!("Total: {} unique values", values.len());
+        }
     }
 
     Ok(())
 }
 
-fn display_table_format(notes: &[&Note]) -> Result<()> {
+fn display_table_format(notes: &[&Note], silent: bool) -> Result<()> {
     if notes.is_empty() {
-        println!("{}", "No notes match the specified criteria.".yellow());
+        if !silent {
+            println!("{}", "No notes match the specified criteria.".yellow());
+        }
         return Ok(());
     }
 
-    println!(
-        "{}",
-        format!("Found {} matching notes:", notes.len())
-            .bold()
-            .blue()
-    );
-    println!();
+    if !silent {
+        println!(
+            "{}",
+            format!("Found {} matching notes:", notes.len())
+                .bold()
+                .blue()
+        );
+        println!();
+    }
 
     // Calculate column widths
     let max_path_width = notes.iter().map(|n| n.path.len()).max().unwrap_or(0);
@@ -244,9 +267,11 @@ fn display_table_format(notes: &[&Note]) -> Result<()> {
     Ok(())
 }
 
-fn display_paths_format(notes: &[&Note]) -> Result<()> {
+fn display_paths_format(notes: &[&Note], silent: bool) -> Result<()> {
     if notes.is_empty() {
-        println!("{}", "No notes match the specified criteria.".yellow());
+        if !silent {
+            println!("{}", "No notes match the specified criteria.".yellow());
+        }
         return Ok(());
     }
 
@@ -257,7 +282,7 @@ fn display_paths_format(notes: &[&Note]) -> Result<()> {
     Ok(())
 }
 
-fn display_json_format(notes: &[&Note]) -> Result<()> {
+fn display_json_format(notes: &[&Note], _silent: bool) -> Result<()> {
     // Create a serde-compatible representation for JSON output
     #[derive(Serialize)]
     struct SerializableNote {
@@ -319,6 +344,6 @@ mod tests {
 
         // This would normally print to stdout, but we can't easily test that
         // Just ensure it doesn't panic
-        assert!(display_paths_format(&note_refs).is_ok());
+        assert!(display_paths_format(&note_refs, false).is_ok());
     }
 }

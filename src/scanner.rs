@@ -34,10 +34,11 @@ impl VaultScanner {
     pub fn scan_vault(
         &self,
         verbose: bool,
+        silent: bool,
         lenient: bool,
         format: Option<&str>,
     ) -> Result<Vec<Note>> {
-        let mut logger = Logger::new(verbose);
+        let mut logger = Logger::new(verbose, silent);
 
         logger.log_info(
             format!("Scanning vault: {}", self.vault_path.display()),
@@ -139,7 +140,7 @@ mod tests {
     fn test_scan_empty_vault() {
         let temp_dir = TempDir::new().unwrap();
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault(false, true, None).unwrap();
+        let notes = scanner.scan_vault(false, false, true, None).unwrap();
         assert!(notes.is_empty());
     }
 
@@ -162,7 +163,7 @@ tags: [test]
         .unwrap();
 
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
-        let notes = scanner.scan_vault(false, true, None).unwrap();
+        let notes = scanner.scan_vault(false, false, true, None).unwrap();
 
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, Some("Test Note".to_string()));

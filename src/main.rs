@@ -40,6 +40,9 @@ enum Commands {
         /// Enable verbose output with detailed error messages
         #[arg(short, long)]
         verbose: bool,
+        /// Suppress all non-essential output (summary and info messages)
+        #[arg(short, long)]
+        silent: bool,
         /// Use strict YAML parsing (disable lenient parsing for frontmatter with colons)
         #[arg(long)]
         strict: bool,
@@ -58,6 +61,9 @@ enum Commands {
         /// Enable verbose output with detailed error messages
         #[arg(short, long)]
         verbose: bool,
+        /// Suppress all non-essential output (summary and info messages)
+        #[arg(short, long)]
+        silent: bool,
         /// Use strict YAML parsing (disable lenient parsing for frontmatter with colons)
         #[arg(long)]
         strict: bool,
@@ -79,6 +85,9 @@ enum Commands {
         /// Enable verbose output with detailed error messages
         #[arg(short, long)]
         verbose: bool,
+        /// Suppress all non-essential output (summary and info messages)
+        #[arg(short, long)]
+        silent: bool,
         /// Use strict YAML parsing (disable lenient parsing for frontmatter with colons)
         #[arg(long)]
         strict: bool,
@@ -102,10 +111,11 @@ fn main() -> anyhow::Result<()> {
             ignore_case,
             format,
             verbose,
+            silent,
             strict,
         } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict, Some(&format))?;
+            let notes = scanner.scan_vault(verbose, silent, !strict, Some(&format))?;
 
             let criteria = if ignore_case {
                 FilterCriteria::new_case_insensitive(filter)
@@ -114,17 +124,18 @@ fn main() -> anyhow::Result<()> {
             };
             let filtered_notes = criteria.apply_filters(&notes);
 
-            output::display_filtered_results(&filtered_notes, &format)?;
+            output::display_filtered_results(&filtered_notes, &format, silent)?;
         }
         Commands::Fields {
             vault_path,
             filter,
             ignore_case,
             verbose,
+            silent,
             strict,
         } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict, None)?;
+            let notes = scanner.scan_vault(verbose, silent, !strict, None)?;
 
             let criteria = if ignore_case {
                 FilterCriteria::new_case_insensitive(filter)
@@ -136,7 +147,7 @@ fn main() -> anyhow::Result<()> {
             // Convert Vec<&Note> back to Vec<Note> for display_all_fields
             let filtered_notes_owned: Vec<Note> = filtered_notes.into_iter().cloned().collect();
 
-            output::display_all_fields(&filtered_notes_owned)?;
+            output::display_all_fields(&filtered_notes_owned, silent)?;
         }
         Commands::Values {
             vault_path,
@@ -144,10 +155,11 @@ fn main() -> anyhow::Result<()> {
             ignore_case,
             filter,
             verbose,
+            silent,
             strict,
         } => {
             let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict, None)?;
+            let notes = scanner.scan_vault(verbose, silent, !strict, None)?;
 
             let criteria = if ignore_case {
                 FilterCriteria::new_case_insensitive(filter)
@@ -159,7 +171,12 @@ fn main() -> anyhow::Result<()> {
             // Convert Vec<&Note> back to Vec<Note> for display_field_values
             let filtered_notes_owned: Vec<Note> = filtered_notes.into_iter().cloned().collect();
 
-            output::display_field_values_with_options(&filtered_notes_owned, &field, !ignore_case)?;
+            output::display_field_values_with_options(
+                &filtered_notes_owned,
+                &field,
+                !ignore_case,
+                silent,
+            )?;
         }
     }
 

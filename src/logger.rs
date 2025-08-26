@@ -21,15 +21,17 @@ pub struct LogEntry {
 #[derive(Debug)]
 pub struct Logger {
     verbose: bool,
+    silent: bool,
     entries: Vec<LogEntry>,
     error_counts: HashMap<String, usize>,
     lenient_parsing_count: usize,
 }
 
 impl Logger {
-    pub fn new(verbose: bool) -> Self {
+    pub fn new(verbose: bool, silent: bool) -> Self {
         Self {
             verbose,
+            silent,
             entries: Vec::new(),
             error_counts: HashMap::new(),
             lenient_parsing_count: 0,
@@ -90,8 +92,8 @@ impl Logger {
             file_path: file_path_str,
         };
 
-        // Show info only in verbose mode
-        if self.verbose {
+        // Show info only in verbose mode AND not in silent mode
+        if self.verbose && !self.silent {
             println!("{}", message);
         }
 
@@ -109,6 +111,11 @@ impl Logger {
             if fmt.to_lowercase() == "json" {
                 return;
             }
+        }
+
+        // Don't print summary if silent flag is set
+        if self.silent {
+            return;
         }
 
         println!("Successfully parsed {} notes", successful_files);
@@ -171,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_logger_verbose_mode() {
-        let mut logger = Logger::new(true);
+        let mut logger = Logger::new(true, false);
 
         // Test warning logging
         logger.log_warning("Test warning".to_string(), Some("test.md"));
@@ -182,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_logger_quiet_mode() {
-        let mut logger = Logger::new(false);
+        let mut logger = Logger::new(false, false);
 
         // Test warning logging (should be counted but not displayed in verbose mode)
         logger.log_warning("Test warning".to_string(), Some("test.md"));
@@ -193,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_error_categorization() {
-        let mut logger = Logger::new(false);
+        let mut logger = Logger::new(false, false);
 
         logger.log_warning("Failed to parse frontmatter".to_string(), Some("test1.md"));
         logger.log_warning("Failed to parse file".to_string(), Some("test2.md"));
@@ -209,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_critical_errors_always_shown() {
-        let mut logger = Logger::new(false); // Non-verbose mode
+        let mut logger = Logger::new(false, false); // Non-verbose mode
 
         // Critical errors should always be shown regardless of verbose setting
         logger.log_critical("Critical error occurred".to_string(), Some("test.md"));
@@ -237,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_logger_error_counts() {
-        let mut logger = Logger::new(false);
+        let mut logger = Logger::new(false, false);
 
         // Add multiple warnings of the same type
         logger.log_warning(
@@ -262,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_lenient_parsing_tracking() {
-        let mut logger = Logger::new(false);
+        let mut logger = Logger::new(false, false);
 
         // Add lenient parsing warnings
         logger.log_warning("Used lenient parsing for frontmatter in file test.md due to: mapping values are not allowed".to_string(), Some("test.md"));
@@ -286,5 +293,42 @@ mod tests {
             logger.error_counts.get("Frontmatter parsing errors"),
             Some(&1)
         );
+    }
+
+    #[test]
+    fn test_silent_mode() {
+        let mut logger = Logger::new(true, true); // verbose=true, silent=true
+
+        // Add some entries
+        logger.log_info("This should not be printed".to_string(), None::<&str>);
+        logger.log_warning("Test warning".to_string(), Some("test.md"));
+        logger.log_critical("Critical error".to_string(), Some("test.md"));
+
+        // Verify entries are still tracked
+        assert_eq!(logger.entries.len(), 3);
+        assert_eq!(logger.get_warning_count(), 1);
+        assert_eq!(logger.get_critical_count(), 1);
+
+        // Test that print_summary respects silent flag
+        // This would normally print, but should be suppressed in silent mode
+        logger.print_summary(10, 8, Some("table"));
+        // No assertion here since we can't easily test stdout suppression,
+        // but the method should return early due to silent flag
+    }
+
+    #[test]
+    fn test_silent_mode_with_json_format() {
+        let mut logger = Logger::new(false, true); // non-verbose, silent
+
+        logger.log_warning("Test warning".to_string(), Some("test.md"));
+
+        // JSON format should still be suppressed (existing behavior)
+        logger.print_summary(10, 8, Some("json"));
+
+        // Table format should also be suppressed due to silent flag
+        logger.print_summary(10, 8, Some("table"));
+
+        // Verify entries are tracked
+        assert_eq!(logger.get_warning_count(), 1);
     }
 }
