@@ -3,7 +3,7 @@ name = "aktenfux"
 version = "0.1.0"
 edition = "2021"
 description = "A CLI tool for indexing and filtering Obsidian vault notes by frontmatter"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Martin Holzhauer <martin@holzhauer.eu>"]
 license = "MIT"
 
 [[bin]]
