@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use anyhow::{Context, Result};
-use crate::yaml_compat::{parse_yaml_frontmatter, yaml_as_str, yaml_contains_str};
+use crate::yaml_compat::{parse_yaml_frontmatter, yaml_as_str, yaml_contains_str, yaml_contains_str_case_insensitive};
 
 #[derive(Debug)]
 pub struct ParseResult {
@@ -49,6 +49,41 @@ impl Note {
         } else {
             false
         }
+    }
+
+    pub fn matches_filter_with_case_sensitivity(&self, key: &str, value: &str, case_sensitive: bool) -> bool {
+        if case_sensitive {
+            self.matches_filter(key, value)
+        } else {
+            // For case-insensitive matching, we need to check both field name and value
+            let matching_key = if case_sensitive {
+                self.get_frontmatter_value(key)
+            } else {
+                // Find field with case-insensitive key matching
+                self.frontmatter.iter()
+                    .find(|(k, _)| k.to_lowercase() == key.to_lowercase())
+                    .map(|(_, v)| v)
+            };
+
+            if let Some(fm_value) = matching_key {
+                yaml_contains_str_case_insensitive(fm_value, value)
+            } else {
+                false
+            }
+        }
+    }
+
+    pub fn get_frontmatter_value_case_insensitive(&self, key: &str) -> Option<&Yaml> {
+        // First try exact match
+        if let Some(value) = self.frontmatter.get(key) {
+            return Some(value);
+        }
+        
+        // Then try case-insensitive match
+        let key_lower = key.to_lowercase();
+        self.frontmatter.iter()
+            .find(|(k, _)| k.to_lowercase() == key_lower)
+            .map(|(_, v)| v)
     }
 }
 
@@ -299,5 +334,65 @@ source: Eberron: Rising from the Last War p. 277
         assert_eq!(yaml_as_str(result_lenient.get("source").unwrap()).unwrap(), "Eberron: Rising from the Last War p. 277");
         assert!(warning_lenient.is_some());
         assert!(warning_lenient.unwrap().contains("Used lenient parsing"));
+    }
+
+    #[test]
+    fn test_case_insensitive_filtering() {
+        let mut fm = HashMap::new();
+        fm.insert("Tag".to_string(), Yaml::String("Work".to_string()));
+        fm.insert("Status".to_string(), Yaml::String("Active".to_string()));
+        fm.insert("Priority".to_string(), Yaml::Array(vec![
+            Yaml::String("High".to_string()),
+            Yaml::String("Urgent".to_string()),
+        ]));
+        
+        let note = Note::new("test.md".to_string(), fm);
+        
+        // Test case-sensitive matching (should fail)
+        assert!(!note.matches_filter("tag", "Work")); // field name case mismatch
+        assert!(!note.matches_filter("Tag", "work")); // value case mismatch
+        
+        // Test case-insensitive matching (should succeed)
+        assert!(note.matches_filter_with_case_sensitivity("tag", "work", false)); // both case mismatches
+        assert!(note.matches_filter_with_case_sensitivity("TAG", "WORK", false)); // both uppercase
+        assert!(note.matches_filter_with_case_sensitivity("Status", "active", false)); // value case mismatch
+        assert!(note.matches_filter_with_case_sensitivity("priority", "high", false)); // array value case mismatch
+        
+        // Test that case-sensitive mode still works
+        assert!(note.matches_filter_with_case_sensitivity("Tag", "Work", true)); // exact match
+        assert!(!note.matches_filter_with_case_sensitivity("tag", "Work", true)); // field name case mismatch
+    }
+
+    #[test]
+    fn test_case_insensitive_field_lookup() {
+        let mut fm = HashMap::new();
+        fm.insert("Title".to_string(), Yaml::String("Test Note".to_string()));
+        fm.insert("TAG".to_string(), Yaml::String("work".to_string()));
+        fm.insert("status".to_string(), Yaml::String("active".to_string()));
+        
+        let note = Note::new("test.md".to_string(), fm);
+        
+        // Test exact matches
+        assert!(note.get_frontmatter_value("Title").is_some());
+        assert!(note.get_frontmatter_value("TAG").is_some());
+        assert!(note.get_frontmatter_value("status").is_some());
+        
+        // Test case-insensitive lookup
+        assert!(note.get_frontmatter_value_case_insensitive("title").is_some());
+        assert!(note.get_frontmatter_value_case_insensitive("TITLE").is_some());
+        assert!(note.get_frontmatter_value_case_insensitive("tag").is_some());
+        assert!(note.get_frontmatter_value_case_insensitive("Tag").is_some());
+        assert!(note.get_frontmatter_value_case_insensitive("STATUS").is_some());
+        assert!(note.get_frontmatter_value_case_insensitive("Status").is_some());
+        
+        // Test non-existent field
+        assert!(note.get_frontmatter_value_case_insensitive("nonexistent").is_none());
+        
+        // Verify values are correct
+        if let Some(Yaml::String(title)) = note.get_frontmatter_value_case_insensitive("title") {
+            assert_eq!(title, "Test Note");
+        } else {
+            panic!("Expected string value for title");
+        }
     }
 }

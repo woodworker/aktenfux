@@ -1,5 +1,5 @@
 use crate::frontmatter::Note;
-use crate::filter::{collect_all_fields, collect_field_values, get_field_statistics};
+use crate::filter::{collect_all_fields, collect_field_values, collect_field_values_case_insensitive, get_field_statistics};
 use crate::yaml_compat::yaml_to_json_value;
 use anyhow::Result;
 use colored::*;
@@ -63,18 +63,38 @@ pub fn display_all_fields(notes: &[Note]) -> Result<()> {
 }
 
 pub fn display_field_values(notes: &[Note], field: &str) -> Result<()> {
-    let values = collect_field_values(notes, field);
+    display_field_values_with_options(notes, field, true)
+}
+
+pub fn display_field_values_with_options(notes: &[Note], field: &str, case_sensitive: bool) -> Result<()> {
+    let (values, actual_field_name) = if case_sensitive {
+        (collect_field_values(notes, field), field.to_string())
+    } else {
+        collect_field_values_case_insensitive(notes, field)
+    };
+    
     let stats = get_field_statistics(notes);
     
     if values.is_empty() {
-        println!("{}", format!("No values found for field '{}'.", field).yellow());
+        if case_sensitive {
+            println!("{}", format!("No values found for field '{}'.", field).yellow());
+        } else {
+            println!("{}", format!("No values found for field '{}' (case-insensitive search).", field).yellow());
+        }
         return Ok(());
     }
     
-    println!("{}", format!("Values for field '{}':", field).bold().blue());
+    let display_field = if case_sensitive {
+        field.to_string()
+    } else {
+        format!("{} (matched: {})", field, actual_field_name)
+    };
+    
+    println!("{}", format!("Values for field '{}':", display_field).bold().blue());
     println!();
     
-    if let Some(field_stats) = stats.get(field) {
+    let stats_key = if case_sensitive { field } else { &actual_field_name };
+    if let Some(field_stats) = stats.get(stats_key) {
         // Calculate column width
         let max_value_width = values.iter().map(|v| v.len()).max().unwrap_or(0);
         let value_width = std::cmp::max(max_value_width, 10);

@@ -59,6 +59,21 @@ pub fn yaml_contains_str(yaml: &Yaml, search: &str) -> bool {
     }
 }
 
+/// Helper function to check if Yaml contains a string value (case-insensitive)
+pub fn yaml_contains_str_case_insensitive(yaml: &Yaml, search: &str) -> bool {
+    let search_lower = search.to_lowercase();
+    match yaml {
+        Yaml::String(s) => s.to_lowercase().contains(&search_lower),
+        Yaml::Array(arr) => {
+            arr.iter().any(|item| yaml_contains_str_case_insensitive(item, search))
+        }
+        Yaml::Integer(n) => n.to_string().to_lowercase().contains(&search_lower),
+        Yaml::Real(f) => f.to_string().to_lowercase().contains(&search_lower),
+        Yaml::Boolean(b) => b.to_string().to_lowercase().contains(&search_lower),
+        _ => false,
+    }
+}
+
 /// Convert Yaml to string representation for display/comparison
 pub fn yaml_to_string(yaml: &Yaml) -> String {
     match yaml {
@@ -156,6 +171,32 @@ status: active
         ]);
         assert!(yaml_contains_str(&yaml_array, "first"));
         assert!(!yaml_contains_str(&yaml_array, "missing"));
+    }
+
+    #[test]
+    fn test_yaml_contains_str_case_insensitive() {
+        let yaml_string = Yaml::String("Test Value".to_string());
+        assert!(yaml_contains_str_case_insensitive(&yaml_string, "test"));
+        assert!(yaml_contains_str_case_insensitive(&yaml_string, "VALUE"));
+        assert!(yaml_contains_str_case_insensitive(&yaml_string, "Test"));
+        assert!(!yaml_contains_str_case_insensitive(&yaml_string, "missing"));
+
+        let yaml_array = Yaml::Array(vec![
+            Yaml::String("First".to_string()),
+            Yaml::String("SECOND".to_string()),
+        ]);
+        assert!(yaml_contains_str_case_insensitive(&yaml_array, "first"));
+        assert!(yaml_contains_str_case_insensitive(&yaml_array, "second"));
+        assert!(yaml_contains_str_case_insensitive(&yaml_array, "FIRST"));
+        assert!(!yaml_contains_str_case_insensitive(&yaml_array, "missing"));
+
+        // Test with numbers and booleans
+        let yaml_int = Yaml::Integer(42);
+        assert!(yaml_contains_str_case_insensitive(&yaml_int, "4"));
+        
+        let yaml_bool = Yaml::Boolean(true);
+        assert!(yaml_contains_str_case_insensitive(&yaml_bool, "TRUE"));
+        assert!(yaml_contains_str_case_insensitive(&yaml_bool, "true"));
     }
 
     #[test]

@@ -31,6 +31,9 @@ enum Commands {
         /// Filter by field=value pairs (can be used multiple times)
         #[arg(long, value_parser = parse_filter)]
         filter: Vec<(String, String)>,
+        /// Enable case-insensitive matching for filters
+        #[arg(short = 'i', long)]
+        ignore_case: bool,
         /// Output format: table, paths, json
         #[arg(short, long, default_value = "table")]
         format: String,
@@ -49,6 +52,9 @@ enum Commands {
         /// Filter by field=value pairs (can be used multiple times)
         #[arg(long, value_parser = parse_filter)]
         filter: Vec<(String, String)>,
+        /// Enable case-insensitive matching for filters
+        #[arg(short = 'i', long)]
+        ignore_case: bool,
         /// Enable verbose output with detailed error messages
         #[arg(short, long)]
         verbose: bool,
@@ -64,6 +70,9 @@ enum Commands {
         /// The field to list values for
         #[arg(short, long)]
         field: String,
+        /// Enable case-insensitive matching for field names and filters
+        #[arg(short = 'i', long)]
+        ignore_case: bool,
         /// Filter by field=value pairs (can be used multiple times)
         #[arg(long, value_parser = parse_filter)]
         filter: Vec<(String, String)>,
@@ -86,42 +95,53 @@ fn parse_filter(s: &str) -> Result<(String, String), String> {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-
-    match cli.command {
-        Commands::Filter { vault_path, filter, format, verbose, strict } => {
-            let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict, Some(&format))?;
-            
-            let criteria = FilterCriteria::new(filter);
-            let filtered_notes = criteria.apply_filters(&notes);
-            
-            output::display_filtered_results(&filtered_notes, &format)?;
-        }
-        Commands::Fields { vault_path, filter, verbose, strict } => {
-            let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict, None)?;
-            
-            let criteria = FilterCriteria::new(filter);
-            let filtered_notes = criteria.apply_filters(&notes);
-            
-            // Convert Vec<&Note> back to Vec<Note> for display_all_fields
-            let filtered_notes_owned: Vec<Note> = filtered_notes.into_iter().cloned().collect();
-            
-            output::display_all_fields(&filtered_notes_owned)?;
-        }
-        Commands::Values { vault_path, field, filter, verbose, strict } => {
-            let scanner = VaultScanner::new(vault_path)?;
-            let notes = scanner.scan_vault(verbose, !strict, None)?;
-            
-            let criteria = FilterCriteria::new(filter);
-            let filtered_notes = criteria.apply_filters(&notes);
-            
-            // Convert Vec<&Note> back to Vec<Note> for display_field_values
-            let filtered_notes_owned: Vec<Note> = filtered_notes.into_iter().cloned().collect();
-            
-            output::display_field_values(&filtered_notes_owned, &field)?;
-        }
+match cli.command {
+    Commands::Filter { vault_path, filter, ignore_case, format, verbose, strict } => {
+        let scanner = VaultScanner::new(vault_path)?;
+        let notes = scanner.scan_vault(verbose, !strict, Some(&format))?;
+        
+        let criteria = if ignore_case {
+            FilterCriteria::new_case_insensitive(filter)
+        } else {
+            FilterCriteria::new(filter)
+        };
+        let filtered_notes = criteria.apply_filters(&notes);
+        
+        output::display_filtered_results(&filtered_notes, &format)?;
     }
+    Commands::Fields { vault_path, filter, ignore_case, verbose, strict } => {
+        let scanner = VaultScanner::new(vault_path)?;
+        let notes = scanner.scan_vault(verbose, !strict, None)?;
+        
+        let criteria = if ignore_case {
+            FilterCriteria::new_case_insensitive(filter)
+        } else {
+            FilterCriteria::new(filter)
+        };
+        let filtered_notes = criteria.apply_filters(&notes);
+        
+        // Convert Vec<&Note> back to Vec<Note> for display_all_fields
+        let filtered_notes_owned: Vec<Note> = filtered_notes.into_iter().cloned().collect();
+        
+        output::display_all_fields(&filtered_notes_owned)?;
+    }
+    Commands::Values { vault_path, field, ignore_case, filter, verbose, strict } => {
+        let scanner = VaultScanner::new(vault_path)?;
+        let notes = scanner.scan_vault(verbose, !strict, None)?;
+        
+        let criteria = if ignore_case {
+            FilterCriteria::new_case_insensitive(filter)
+        } else {
+            FilterCriteria::new(filter)
+        };
+        let filtered_notes = criteria.apply_filters(&notes);
+        
+        // Convert Vec<&Note> back to Vec<Note> for display_field_values
+        let filtered_notes_owned: Vec<Note> = filtered_notes.into_iter().cloned().collect();
+        
+        output::display_field_values_with_options(&filtered_notes_owned, &field, !ignore_case)?;
+    }
+}
 
     Ok(())
 }
