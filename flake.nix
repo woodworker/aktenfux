@@ -14,7 +14,7 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
-        
+
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "clippy" ];
         };
@@ -27,6 +27,8 @@
             cargo-edit
             cargo-outdated
             rust-analyzer
+            pre-commit
+            yamllint
             pkg-config
             openssl
             nodejs_24
@@ -54,11 +56,11 @@
           version = "0.1.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
-          
+
           buildInputs = with pkgs; [
             openssl
           ];
-          
+
           nativeBuildInputs = with pkgs; [
             pkg-config
           ];

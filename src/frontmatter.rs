@@ -1,9 +1,11 @@
-use yaml_rust2::Yaml;
+use crate::yaml_compat::{
+    parse_yaml_frontmatter, yaml_as_str, yaml_contains_str, yaml_contains_str_case_insensitive,
+};
+use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use anyhow::{Context, Result};
-use crate::yaml_compat::{parse_yaml_frontmatter, yaml_as_str, yaml_contains_str, yaml_contains_str_case_insensitive};
+use yaml_rust2::Yaml;
 
 // Type alias for complex frontmatter extraction result
 type FrontmatterResult = Result<(Option<HashMap<String, Yaml>>, Option<String>)>;
@@ -54,7 +56,12 @@ impl Note {
         }
     }
 
-    pub fn matches_filter_with_case_sensitivity(&self, key: &str, value: &str, case_sensitive: bool) -> bool {
+    pub fn matches_filter_with_case_sensitivity(
+        &self,
+        key: &str,
+        value: &str,
+        case_sensitive: bool,
+    ) -> bool {
         if case_sensitive {
             self.matches_filter(key, value)
         } else {
@@ -63,7 +70,8 @@ impl Note {
                 self.get_frontmatter_value(key)
             } else {
                 // Find field with case-insensitive key matching
-                self.frontmatter.iter()
+                self.frontmatter
+                    .iter()
                     .find(|(k, _)| k.to_lowercase() == key.to_lowercase())
                     .map(|(_, v)| v)
             };
@@ -81,30 +89,36 @@ impl Note {
         if let Some(value) = self.frontmatter.get(key) {
             return Some(value);
         }
-        
+
         // Then try case-insensitive match
         let key_lower = key.to_lowercase();
-        self.frontmatter.iter()
+        self.frontmatter
+            .iter()
             .find(|(k, _)| k.to_lowercase() == key_lower)
             .map(|(_, v)| v)
     }
 }
 
-pub fn parse_frontmatter_from_file<P: AsRef<Path>>(path: P, verbose: bool, lenient: bool) -> Result<ParseResult> {
+pub fn parse_frontmatter_from_file<P: AsRef<Path>>(
+    path: P,
+    verbose: bool,
+    lenient: bool,
+) -> Result<ParseResult> {
     let content = fs::read_to_string(&path)
         .with_context(|| format!("Failed to read file: {}", path.as_ref().display()))?;
 
     let path_str = path.as_ref().to_string_lossy().to_string();
-    
-    let (frontmatter_opt, warning) = extract_frontmatter_with_options(&content, &path_str, verbose, lenient)?;
-    
+
+    let (frontmatter_opt, warning) =
+        extract_frontmatter_with_options(&content, &path_str, verbose, lenient)?;
+
     let note = if let Some(frontmatter) = frontmatter_opt {
         Some(Note::new(path_str.clone(), frontmatter))
     } else {
         // Create note with empty frontmatter if no frontmatter found
         Some(Note::new(path_str, HashMap::new()))
     };
-    
+
     Ok(ParseResult {
         note,
         frontmatter_warning: warning,
@@ -116,9 +130,14 @@ fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> Frontm
     extract_frontmatter_with_options(content, file_path, _verbose, true)
 }
 
-fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bool, lenient: bool) -> FrontmatterResult {
+fn extract_frontmatter_with_options(
+    content: &str,
+    file_path: &str,
+    _verbose: bool,
+    lenient: bool,
+) -> FrontmatterResult {
     let content = content.trim();
-    
+
     // Check if content starts with frontmatter delimiter
     if !content.starts_with("---") {
         return Ok((None, None));
@@ -159,12 +178,18 @@ fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bo
                 // Try lenient parsing by fixing common YAML issues
                 match try_lenient_parse(&frontmatter_content) {
                     Ok(parsed) => {
-                        let warning = format!("Used lenient parsing for frontmatter in file {} due to: {}", file_path, e);
+                        let warning = format!(
+                            "Used lenient parsing for frontmatter in file {} due to: {}",
+                            file_path, e
+                        );
                         Ok((Some(parsed), Some(warning)))
-                    },
+                    }
                     Err(_) => {
                         // If lenient parsing also fails, return warning message and empty frontmatter
-                        let warning = format!("Failed to parse frontmatter in file {} even with lenient parsing: {}", file_path, e);
+                        let warning = format!(
+                            "Failed to parse frontmatter in file {} even with lenient parsing: {}",
+                            file_path, e
+                        );
                         Ok((Some(HashMap::new()), Some(warning)))
                     }
                 }
@@ -185,31 +210,37 @@ fn try_lenient_parse(frontmatter_content: &str) -> Result<HashMap<String, Yaml>>
 
 fn fix_yaml_issues(content: &str) -> String {
     let mut fixed_lines = Vec::new();
-    
+
     for line in content.lines() {
         let trimmed = line.trim();
-        
+
         // Skip empty lines and comments
         if trimmed.is_empty() || trimmed.starts_with('#') {
             fixed_lines.push(line.to_string());
             continue;
         }
-        
+
         // Check if this looks like a key-value pair
         if let Some(colon_pos) = trimmed.find(':') {
             let key_part = &trimmed[..colon_pos];
             let value_part = &trimmed[colon_pos + 1..].trim_start();
-            
+
             // Skip if this is already a properly formatted YAML (like arrays, objects, etc.)
-            if value_part.starts_with('[') || value_part.starts_with('{') ||
-               value_part.starts_with('"') || value_part.starts_with('\'') ||
-               value_part.is_empty() {
+            if value_part.starts_with('[')
+                || value_part.starts_with('{')
+                || value_part.starts_with('"')
+                || value_part.starts_with('\'')
+                || value_part.is_empty()
+            {
                 fixed_lines.push(line.to_string());
                 continue;
             }
-            
+
             // Check if the value contains additional colons and isn't already quoted
-            if value_part.contains(':') && !value_part.starts_with('"') && !value_part.starts_with('\'') {
+            if value_part.contains(':')
+                && !value_part.starts_with('"')
+                && !value_part.starts_with('\'')
+            {
                 // Quote the value to make it valid YAML
                 let leading_spaces = line.len() - line.trim_start().len();
                 let spaces = " ".repeat(leading_spaces);
@@ -221,7 +252,7 @@ fn fix_yaml_issues(content: &str) -> String {
             fixed_lines.push(line.to_string());
         }
     }
-    
+
     fixed_lines.join("\n")
 }
 
@@ -243,8 +274,14 @@ This is the content of the note."#;
 
         let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
         let result = result.unwrap();
-        assert_eq!(yaml_as_str(result.get("title").unwrap()).unwrap(), "Test Note");
-        assert_eq!(yaml_as_str(result.get("status").unwrap()).unwrap(), "active");
+        assert_eq!(
+            yaml_as_str(result.get("title").unwrap()).unwrap(),
+            "Test Note"
+        );
+        assert_eq!(
+            yaml_as_str(result.get("status").unwrap()).unwrap(),
+            "active"
+        );
         assert!(warning.is_none());
     }
 
@@ -280,12 +317,24 @@ This note has colons in frontmatter values."#;
 
         let (result, warning) = extract_frontmatter(content, "test.md", false).unwrap();
         let result = result.unwrap();
-        
-        assert_eq!(yaml_as_str(result.get("title").unwrap()).unwrap(), "Test Note");
-        assert_eq!(yaml_as_str(result.get("source").unwrap()).unwrap(), "Eberron: Rising from the Last War p. 277");
-        assert_eq!(yaml_as_str(result.get("book").unwrap()).unwrap(), "Player's Handbook: Chapter 3");
-        assert_eq!(yaml_as_str(result.get("url").unwrap()).unwrap(), "https://example.com/path");
-        
+
+        assert_eq!(
+            yaml_as_str(result.get("title").unwrap()).unwrap(),
+            "Test Note"
+        );
+        assert_eq!(
+            yaml_as_str(result.get("source").unwrap()).unwrap(),
+            "Eberron: Rising from the Last War p. 277"
+        );
+        assert_eq!(
+            yaml_as_str(result.get("book").unwrap()).unwrap(),
+            "Player's Handbook: Chapter 3"
+        );
+        assert_eq!(
+            yaml_as_str(result.get("url").unwrap()).unwrap(),
+            "https://example.com/path"
+        );
+
         // Should have a warning about lenient parsing
         assert!(warning.is_some());
         assert!(warning.unwrap().contains("Used lenient parsing"));
@@ -302,7 +351,7 @@ quoted: "Already: quoted"
 number: 42"#;
 
         let fixed = fix_yaml_issues(problematic_yaml);
-        
+
         // Should quote values with colons but leave others alone
         assert!(fixed.contains("source: \"Eberron: Rising from the Last War p. 277\""));
         assert!(fixed.contains("book: \"Player's Handbook: Chapter 3\""));
@@ -323,18 +372,28 @@ source: Eberron: Rising from the Last War p. 277
 # Test Note"#;
 
         // Test strict parsing (should fail and return empty frontmatter)
-        let (result_strict, warning_strict) = extract_frontmatter_with_options(content, "test.md", false, false).unwrap();
+        let (result_strict, warning_strict) =
+            extract_frontmatter_with_options(content, "test.md", false, false).unwrap();
         let result_strict = result_strict.unwrap();
         assert!(result_strict.is_empty()); // Should be empty due to parsing failure
         assert!(warning_strict.is_some());
-        assert!(warning_strict.unwrap().contains("Failed to parse frontmatter"));
+        assert!(warning_strict
+            .unwrap()
+            .contains("Failed to parse frontmatter"));
 
         // Test lenient parsing (should succeed)
-        let (result_lenient, warning_lenient) = extract_frontmatter_with_options(content, "test.md", false, true).unwrap();
+        let (result_lenient, warning_lenient) =
+            extract_frontmatter_with_options(content, "test.md", false, true).unwrap();
         let result_lenient = result_lenient.unwrap();
         assert!(!result_lenient.is_empty()); // Should have parsed content
-        assert_eq!(yaml_as_str(result_lenient.get("title").unwrap()).unwrap(), "Test Note");
-        assert_eq!(yaml_as_str(result_lenient.get("source").unwrap()).unwrap(), "Eberron: Rising from the Last War p. 277");
+        assert_eq!(
+            yaml_as_str(result_lenient.get("title").unwrap()).unwrap(),
+            "Test Note"
+        );
+        assert_eq!(
+            yaml_as_str(result_lenient.get("source").unwrap()).unwrap(),
+            "Eberron: Rising from the Last War p. 277"
+        );
         assert!(warning_lenient.is_some());
         assert!(warning_lenient.unwrap().contains("Used lenient parsing"));
     }
@@ -344,26 +403,30 @@ source: Eberron: Rising from the Last War p. 277
         let mut fm = HashMap::new();
         fm.insert("Tag".to_string(), Yaml::String("Work".to_string()));
         fm.insert("Status".to_string(), Yaml::String("Active".to_string()));
-        fm.insert("Priority".to_string(), Yaml::Array(vec![
-            Yaml::String("High".to_string()),
-            Yaml::String("Urgent".to_string()),
-        ]));
-        
+        fm.insert(
+            "Priority".to_string(),
+            Yaml::Array(vec![
+                Yaml::String("High".to_string()),
+                Yaml::String("Urgent".to_string()),
+            ]),
+        );
+
         let note = Note::new("test.md".to_string(), fm);
-        
+
         // Test case-sensitive matching (should fail)
         assert!(!note.matches_filter("tag", "Work")); // field name case mismatch
         assert!(!note.matches_filter("Tag", "work")); // value case mismatch
-        
+
         // Test case-insensitive matching (should succeed)
         assert!(note.matches_filter_with_case_sensitivity("tag", "work", false)); // both case mismatches
         assert!(note.matches_filter_with_case_sensitivity("TAG", "WORK", false)); // both uppercase
         assert!(note.matches_filter_with_case_sensitivity("Status", "active", false)); // value case mismatch
         assert!(note.matches_filter_with_case_sensitivity("priority", "high", false)); // array value case mismatch
-        
+
         // Test that case-sensitive mode still works
         assert!(note.matches_filter_with_case_sensitivity("Tag", "Work", true)); // exact match
-        assert!(!note.matches_filter_with_case_sensitivity("tag", "Work", true)); // field name case mismatch
+        assert!(!note.matches_filter_with_case_sensitivity("tag", "Work", true));
+        // field name case mismatch
     }
 
     #[test]
@@ -372,25 +435,35 @@ source: Eberron: Rising from the Last War p. 277
         fm.insert("Title".to_string(), Yaml::String("Test Note".to_string()));
         fm.insert("TAG".to_string(), Yaml::String("work".to_string()));
         fm.insert("status".to_string(), Yaml::String("active".to_string()));
-        
+
         let note = Note::new("test.md".to_string(), fm);
-        
+
         // Test exact matches
         assert!(note.get_frontmatter_value("Title").is_some());
         assert!(note.get_frontmatter_value("TAG").is_some());
         assert!(note.get_frontmatter_value("status").is_some());
-        
+
         // Test case-insensitive lookup
-        assert!(note.get_frontmatter_value_case_insensitive("title").is_some());
-        assert!(note.get_frontmatter_value_case_insensitive("TITLE").is_some());
+        assert!(note
+            .get_frontmatter_value_case_insensitive("title")
+            .is_some());
+        assert!(note
+            .get_frontmatter_value_case_insensitive("TITLE")
+            .is_some());
         assert!(note.get_frontmatter_value_case_insensitive("tag").is_some());
         assert!(note.get_frontmatter_value_case_insensitive("Tag").is_some());
-        assert!(note.get_frontmatter_value_case_insensitive("STATUS").is_some());
-        assert!(note.get_frontmatter_value_case_insensitive("Status").is_some());
-        
+        assert!(note
+            .get_frontmatter_value_case_insensitive("STATUS")
+            .is_some());
+        assert!(note
+            .get_frontmatter_value_case_insensitive("Status")
+            .is_some());
+
         // Test non-existent field
-        assert!(note.get_frontmatter_value_case_insensitive("nonexistent").is_none());
-        
+        assert!(note
+            .get_frontmatter_value_case_insensitive("nonexistent")
+            .is_none());
+
         // Verify values are correct
         if let Some(Yaml::String(title)) = note.get_frontmatter_value_case_insensitive("title") {
             assert_eq!(title, "Test Note");

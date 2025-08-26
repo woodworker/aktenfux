@@ -13,7 +13,7 @@ pub struct VaultScanner {
 impl VaultScanner {
     pub fn new<P: AsRef<Path>>(vault_path: P) -> Result<Self> {
         let vault_path = vault_path.as_ref().to_path_buf();
-        
+
         if !vault_path.exists() {
             return Err(anyhow::anyhow!(
                 "Vault path does not exist: {}",
@@ -31,26 +31,31 @@ impl VaultScanner {
         Ok(Self { vault_path })
     }
 
-    pub fn scan_vault(&self, verbose: bool, lenient: bool, format: Option<&str>) -> Result<Vec<Note>> {
+    pub fn scan_vault(
+        &self,
+        verbose: bool,
+        lenient: bool,
+        format: Option<&str>,
+    ) -> Result<Vec<Note>> {
         let mut logger = Logger::new(verbose);
-        
+
         logger.log_info(
             format!("Scanning vault: {}", self.vault_path.display()),
             None::<&Path>,
         );
-        
+
         // Find all markdown files
         let markdown_files: Vec<PathBuf> = WalkDir::new(&self.vault_path)
             .into_iter()
             .filter_map(|entry| {
                 let entry = entry.ok()?;
                 let path = entry.path();
-                
+
                 // Skip hidden files and directories
                 if path.file_name()?.to_str()?.starts_with('.') {
                     return None;
                 }
-                
+
                 // Only process markdown files
                 if path.extension()?.to_str()? == "md" {
                     Some(path.to_path_buf())
@@ -73,7 +78,10 @@ impl VaultScanner {
             .par_iter()
             .filter_map(|path| {
                 match parse_frontmatter_from_file(path, verbose, lenient) {
-                    Ok(ParseResult { note, frontmatter_warning }) => {
+                    Ok(ParseResult {
+                        note,
+                        frontmatter_warning,
+                    }) => {
                         // Log frontmatter warnings if present
                         if let Some(warning) = frontmatter_warning {
                             if let Ok(mut logger) = logger.lock() {
@@ -84,10 +92,7 @@ impl VaultScanner {
                     }
                     Err(e) => {
                         if let Ok(mut logger) = logger.lock() {
-                            logger.log_critical(
-                                format!("Failed to parse file: {}", e),
-                                Some(path),
-                            );
+                            logger.log_critical(format!("Failed to parse file: {}", e), Some(path));
                         }
                         None
                     }
@@ -141,20 +146,24 @@ mod tests {
     #[test]
     fn test_scan_vault_with_markdown() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a test markdown file
         let test_file = temp_dir.path().join("test.md");
-        fs::write(&test_file, r#"---
+        fs::write(
+            &test_file,
+            r#"---
 title: Test Note
 tags: [test]
 ---
 
 # Test Content
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let scanner = VaultScanner::new(temp_dir.path()).unwrap();
         let notes = scanner.scan_vault(false, true, None).unwrap();
-        
+
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].title, Some("Test Note".to_string()));
     }

@@ -43,14 +43,14 @@ impl Logger {
             message: message.clone(),
             file_path: file_path_str.clone(),
         };
-        
+
         // Critical errors are always shown
         if let Some(path) = &file_path_str {
             eprintln!("Error: {} ({})", message, path);
         } else {
             eprintln!("Error: {}", message);
         }
-        
+
         self.entries.push(entry);
     }
 
@@ -78,7 +78,7 @@ impl Logger {
                 eprintln!("Warning: {}", message);
             }
         }
-        
+
         self.entries.push(entry);
     }
 
@@ -94,25 +94,33 @@ impl Logger {
         if self.verbose {
             println!("{}", message);
         }
-        
+
         self.entries.push(entry);
     }
 
-    pub fn print_summary(&self, _total_files: usize, successful_files: usize, format: Option<&str>) {
+    pub fn print_summary(
+        &self,
+        _total_files: usize,
+        successful_files: usize,
+        format: Option<&str>,
+    ) {
         // Don't print summary for JSON format to keep output clean
         if let Some(fmt) = format {
             if fmt.to_lowercase() == "json" {
                 return;
             }
         }
-        
+
         println!("Successfully parsed {} notes", successful_files);
-        
+
         // Show lenient parsing info if any files were fixed
         if self.lenient_parsing_count > 0 {
-            println!("Fixed {} files with lenient parsing (frontmatter with colons in values)", self.lenient_parsing_count);
+            println!(
+                "Fixed {} files with lenient parsing (frontmatter with colons in values)",
+                self.lenient_parsing_count
+            );
         }
-        
+
         // Show actual parsing errors (files that were skipped)
         if !self.error_counts.is_empty() {
             let total_errors: usize = self.error_counts.values().sum();
@@ -130,14 +138,16 @@ impl Logger {
 
     #[cfg(test)]
     pub fn get_warning_count(&self) -> usize {
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|entry| matches!(entry.level, ErrorLevel::Warning))
             .count()
     }
 
     #[cfg(test)]
     pub fn get_critical_count(&self) -> usize {
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|entry| matches!(entry.level, ErrorLevel::Critical))
             .count()
     }
@@ -162,10 +172,10 @@ mod tests {
     #[test]
     fn test_logger_verbose_mode() {
         let mut logger = Logger::new(true);
-        
+
         // Test warning logging
         logger.log_warning("Test warning".to_string(), Some("test.md"));
-        
+
         assert_eq!(logger.get_warning_count(), 1);
         assert_eq!(logger.get_critical_count(), 0);
     }
@@ -173,10 +183,10 @@ mod tests {
     #[test]
     fn test_logger_quiet_mode() {
         let mut logger = Logger::new(false);
-        
+
         // Test warning logging (should be counted but not displayed in verbose mode)
         logger.log_warning("Test warning".to_string(), Some("test.md"));
-        
+
         assert_eq!(logger.get_warning_count(), 1);
         assert_eq!(logger.get_critical_count(), 0);
     }
@@ -184,15 +194,15 @@ mod tests {
     #[test]
     fn test_error_categorization() {
         let mut logger = Logger::new(false);
-        
+
         logger.log_warning("Failed to parse frontmatter".to_string(), Some("test1.md"));
         logger.log_warning("Failed to parse file".to_string(), Some("test2.md"));
         logger.log_warning("Failed to read file".to_string(), Some("test3.md"));
         logger.log_warning("Some other error".to_string(), Some("test4.md"));
-        
+
         // Check that error counts are tracked
         assert_eq!(logger.get_warning_count(), 4);
-        
+
         // Check that error counts by type are tracked
         assert_eq!(logger.error_counts.len(), 4);
     }
@@ -200,57 +210,81 @@ mod tests {
     #[test]
     fn test_critical_errors_always_shown() {
         let mut logger = Logger::new(false); // Non-verbose mode
-        
+
         // Critical errors should always be shown regardless of verbose setting
         logger.log_critical("Critical error occurred".to_string(), Some("test.md"));
-        
+
         assert_eq!(logger.get_critical_count(), 1);
         assert_eq!(logger.get_warning_count(), 0);
     }
 
     #[test]
     fn test_extract_warning_type() {
-        assert_eq!(extract_warning_type("Failed to parse frontmatter"), "Frontmatter parsing errors");
-        assert_eq!(extract_warning_type("Failed to parse file"), "File parsing errors");
-        assert_eq!(extract_warning_type("Failed to read file"), "File read errors");
+        assert_eq!(
+            extract_warning_type("Failed to parse frontmatter"),
+            "Frontmatter parsing errors"
+        );
+        assert_eq!(
+            extract_warning_type("Failed to parse file"),
+            "File parsing errors"
+        );
+        assert_eq!(
+            extract_warning_type("Failed to read file"),
+            "File read errors"
+        );
         assert_eq!(extract_warning_type("Unknown error"), "Other errors");
     }
 
     #[test]
     fn test_logger_error_counts() {
         let mut logger = Logger::new(false);
-        
+
         // Add multiple warnings of the same type
-        logger.log_warning("Failed to parse frontmatter in file1".to_string(), Some("test1.md"));
-        logger.log_warning("Failed to parse frontmatter in file2".to_string(), Some("test2.md"));
-        
+        logger.log_warning(
+            "Failed to parse frontmatter in file1".to_string(),
+            Some("test1.md"),
+        );
+        logger.log_warning(
+            "Failed to parse frontmatter in file2".to_string(),
+            Some("test2.md"),
+        );
+
         // Should have 2 warnings total
         assert_eq!(logger.get_warning_count(), 2);
-        
+
         // Should have 1 error type with count of 2
         assert_eq!(logger.error_counts.len(), 1);
-        assert_eq!(logger.error_counts.get("Frontmatter parsing errors"), Some(&2));
+        assert_eq!(
+            logger.error_counts.get("Frontmatter parsing errors"),
+            Some(&2)
+        );
     }
 
     #[test]
     fn test_lenient_parsing_tracking() {
         let mut logger = Logger::new(false);
-        
+
         // Add lenient parsing warnings
         logger.log_warning("Used lenient parsing for frontmatter in file test.md due to: mapping values are not allowed".to_string(), Some("test.md"));
         logger.log_warning("Used lenient parsing for frontmatter in file test2.md due to: mapping values are not allowed".to_string(), Some("test2.md"));
-        
+
         // Add regular parsing error
-        logger.log_warning("Failed to parse frontmatter in file3".to_string(), Some("test3.md"));
-        
+        logger.log_warning(
+            "Failed to parse frontmatter in file3".to_string(),
+            Some("test3.md"),
+        );
+
         // Should have 3 warnings total
         assert_eq!(logger.get_warning_count(), 3);
-        
+
         // Should have 2 lenient parsing fixes
         assert_eq!(logger.lenient_parsing_count, 2);
-        
+
         // Should have 1 actual error
         assert_eq!(logger.error_counts.len(), 1);
-        assert_eq!(logger.error_counts.get("Frontmatter parsing errors"), Some(&1));
+        assert_eq!(
+            logger.error_counts.get("Frontmatter parsing errors"),
+            Some(&1)
+        );
     }
 }

@@ -1,0 +1,71 @@
+# Pre-commit hooks configuration for aktenfux project
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  # Rust-specific hooks
+  - repo: local
+    hooks:
+      # Format code with rustfmt
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Run clippy for linting
+      - id: clippy
+        name: clippy
+        entry: cargo clippy
+        language: system
+        args: [--all-targets, --all-features, --, -D, warnings]
+        types: [rust]
+        pass_filenames: false
+
+      # Run tests
+      - id: cargo-test
+        name: cargo test
+        entry: cargo test
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Check for outdated dependencies (optional, can be slow)
+      - id: cargo-outdated
+        name: cargo outdated
+        entry: bash -c 'cargo outdated --exit-code 1 || echo "Warning Some dependencies are outdated"'
+        language: system
+        files: Cargo\.(toml|lock)
+        pass_filenames: false
+        stages: [manual]  # Only run when explicitly called with --hook-stage manual
+
+  # Additional Rust tooling
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+        name: rustfmt (alternative)
+        stages: [manual]  # Alternative to local rustfmt hook
+      - id: clippy
+        name: clippy (alternative)
+        stages: [manual]  # Alternative to local clippy hook
+
+# Configuration
+default_stages: [commit]
+fail_fast: false
+
+# To install: pre-commit install
+# To run manually: pre-commit run --all-files
+# To run outdated check: pre-commit run --hook-stage manual cargo-outdated

@@ -1,19 +1,19 @@
-use yaml_rust2::{YamlLoader, Yaml};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
-use anyhow::{Result, anyhow};
+use yaml_rust2::{Yaml, YamlLoader};
 
 /// Compatibility wrapper for yaml-rust2 to match serde_yaml behavior
 pub fn parse_yaml_frontmatter(content: &str) -> Result<HashMap<String, Yaml>> {
-    let docs = YamlLoader::load_from_str(content)
-        .map_err(|e| anyhow!("YAML parsing error: {}", e))?;
-    
+    let docs =
+        YamlLoader::load_from_str(content).map_err(|e| anyhow!("YAML parsing error: {}", e))?;
+
     if docs.is_empty() {
         return Ok(HashMap::new());
     }
-    
+
     // Take the first document (frontmatter is single document)
     let doc = &docs[0];
-    
+
     // Convert to string-keyed HashMap
     yaml_to_string_map(doc)
 }
@@ -32,7 +32,10 @@ fn yaml_to_string_map(yaml: &Yaml) -> Result<HashMap<String, Yaml>> {
             Ok(result)
         }
         Yaml::Null => Ok(HashMap::new()), // Empty document
-        _ => Err(anyhow!("Expected hash or null at document root, got {:?}", yaml)),
+        _ => Err(anyhow!(
+            "Expected hash or null at document root, got {:?}",
+            yaml
+        )),
     }
 }
 
@@ -48,9 +51,7 @@ pub fn yaml_as_str(yaml: &Yaml) -> Option<&str> {
 pub fn yaml_contains_str(yaml: &Yaml, search: &str) -> bool {
     match yaml {
         Yaml::String(s) => s.contains(search),
-        Yaml::Array(arr) => {
-            arr.iter().any(|item| yaml_contains_str(item, search))
-        }
+        Yaml::Array(arr) => arr.iter().any(|item| yaml_contains_str(item, search)),
         Yaml::Integer(n) => n.to_string().contains(search),
         Yaml::Real(f) => f.to_string().contains(search),
         Yaml::Boolean(b) => b.to_string().contains(search),
@@ -63,9 +64,9 @@ pub fn yaml_contains_str_case_insensitive(yaml: &Yaml, search: &str) -> bool {
     let search_lower = search.to_lowercase();
     match yaml {
         Yaml::String(s) => s.to_lowercase().contains(&search_lower),
-        Yaml::Array(arr) => {
-            arr.iter().any(|item| yaml_contains_str_case_insensitive(item, search))
-        }
+        Yaml::Array(arr) => arr
+            .iter()
+            .any(|item| yaml_contains_str_case_insensitive(item, search)),
         Yaml::Integer(n) => n.to_string().to_lowercase().contains(&search_lower),
         Yaml::Real(f) => f.to_string().to_lowercase().contains(&search_lower),
         Yaml::Boolean(b) => b.to_string().to_lowercase().contains(&search_lower),
@@ -89,17 +90,16 @@ pub fn yaml_to_string(yaml: &Yaml) -> String {
 pub fn collect_yaml_strings(yaml: &Yaml) -> Vec<String> {
     match yaml {
         Yaml::String(s) => vec![s.clone()],
-        Yaml::Array(arr) => {
-            arr.iter()
-                .filter_map(|item| {
-                    if let Yaml::String(s) = item {
-                        Some(s.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        }
+        Yaml::Array(arr) => arr
+            .iter()
+            .filter_map(|item| {
+                if let Yaml::String(s) = item {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+            .collect(),
         Yaml::Integer(n) => vec![n.to_string()],
         Yaml::Real(f) => vec![f.to_string()],
         Yaml::Boolean(b) => vec![b.to_string()],
@@ -121,11 +121,9 @@ pub fn yaml_to_json_value(yaml: &Yaml) -> serde_json::Value {
             } else {
                 serde_json::Value::Null
             }
-        },
+        }
         Yaml::Boolean(b) => serde_json::Value::Bool(*b),
-        Yaml::Array(arr) => serde_json::Value::Array(
-            arr.iter().map(yaml_to_json_value).collect()
-        ),
+        Yaml::Array(arr) => serde_json::Value::Array(arr.iter().map(yaml_to_json_value).collect()),
         Yaml::Hash(hash) => {
             let mut map = serde_json::Map::new();
             for (k, v) in hash {
@@ -192,7 +190,7 @@ status: active
         // Test with numbers and booleans
         let yaml_int = Yaml::Integer(42);
         assert!(yaml_contains_str_case_insensitive(&yaml_int, "4"));
-        
+
         let yaml_bool = Yaml::Boolean(true);
         assert!(yaml_contains_str_case_insensitive(&yaml_bool, "TRUE"));
         assert!(yaml_contains_str_case_insensitive(&yaml_bool, "true"));

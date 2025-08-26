@@ -29,3 +29,52 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# Clippy configuration
+[lints.clippy]
+# Set lint groups with lower priority so individual lints can override them
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# Allow some pedantic lints that can be too strict for practical development
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+similar_names = "allow"
+too_many_lines = "allow"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+uninlined_format_args = "allow"
+needless_pass_by_value = "allow"
+unnecessary_wraps = "allow"
+wildcard_imports = "allow"
+doc_markdown = "allow"
+used_underscore_binding = "allow"
+multiple_crate_versions = "allow"
+cargo_common_metadata = "allow"
+
+# Allow some style lints that can be overly pedantic
+needless_raw_string_hashes = "allow"
+missing_const_for_fn = "allow"
+assigning_clones = "allow"
+redundant_closure_for_method_calls = "allow"
+option_if_let_else = "allow"
+redundant_clone = "allow"
+manual_let_else = "allow"
+single_match_else = "allow"
+map_unwrap_or = "allow"
+match_same_arms = "allow"
+useless_vec = "allow"
+
+# Allow unwrap/panic in tests
+unwrap_used = "allow"
+expect_used = "allow"
+panic = "allow"
+
+# Keep some important lints as warnings
+unimplemented = "warn"
+todo = "warn"
