@@ -3,7 +3,6 @@ use crate::filter::{collect_all_fields, collect_field_values, collect_field_valu
 use crate::yaml_compat::yaml_to_json_value;
 use anyhow::Result;
 use colored::*;
-use serde_json;
 use serde::Serialize;
 
 pub fn display_filtered_results(notes: &[&Note], format: &str) -> Result<()> {
@@ -60,10 +59,6 @@ pub fn display_all_fields(notes: &[Note]) -> Result<()> {
     println!("Total: {} unique fields across {} notes", fields.len(), notes.len());
     
     Ok(())
-}
-
-pub fn display_field_values(notes: &[Note], field: &str) -> Result<()> {
-    display_field_values_with_options(notes, field, true)
 }
 
 pub fn display_field_values_with_options(notes: &[Note], field: &str, case_sensitive: bool) -> Result<()> {

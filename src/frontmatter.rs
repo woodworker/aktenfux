@@ -5,6 +5,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use crate::yaml_compat::{parse_yaml_frontmatter, yaml_as_str, yaml_contains_str, yaml_contains_str_case_insensitive};
 
+// Type alias for complex frontmatter extraction result
+type FrontmatterResult = Result<(Option<HashMap<String, Yaml>>, Option<String>)>;
+
 #[derive(Debug)]
 pub struct ParseResult {
     pub note: Option<Note>,
@@ -109,11 +112,11 @@ pub fn parse_frontmatter_from_file<P: AsRef<Path>>(path: P, verbose: bool, lenie
 }
 
 #[cfg(test)]
-fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> Result<(Option<HashMap<String, Yaml>>, Option<String>)> {
+fn extract_frontmatter(content: &str, file_path: &str, _verbose: bool) -> FrontmatterResult {
     extract_frontmatter_with_options(content, file_path, _verbose, true)
 }
 
-fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bool, lenient: bool) -> Result<(Option<HashMap<String, Yaml>>, Option<String>)> {
+fn extract_frontmatter_with_options(content: &str, file_path: &str, _verbose: bool, lenient: bool) -> FrontmatterResult {
     let content = content.trim();
     
     // Check if content starts with frontmatter delimiter

@@ -1,7 +1,6 @@
 use yaml_rust2::{YamlLoader, Yaml};
 use std::collections::HashMap;
 use anyhow::{Result, anyhow};
-use serde_json;
 
 /// Compatibility wrapper for yaml-rust2 to match serde_yaml behavior
 pub fn parse_yaml_frontmatter(content: &str) -> Result<HashMap<String, Yaml>> {

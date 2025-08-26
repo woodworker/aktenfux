@@ -82,7 +82,7 @@ pub fn collect_field_values_case_insensitive(notes: &[Note], field: &str) -> (Ve
             if !found_field {
                 // Find the actual field name (with original casing) from the first match
                 let field_lower = field.to_lowercase();
-                for (key, _) in &note.frontmatter {
+                for key in note.frontmatter.keys() {
                     if key.to_lowercase() == field_lower {
                         actual_field_name = key.clone();
                         found_field = true;
